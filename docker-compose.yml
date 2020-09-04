@@ -1,0 +1,28 @@
+version: '3'
+
+services:
+  mysql:
+    restart: always
+    image: mysql:5.7
+    env_file:
+      - ./.env.development
+    ports:
+      - "3306:3306"
+  torus-metadata:
+    restart: always
+    depends_on:
+      - mysql
+      - ipfs
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    env_file:
+      - ./.env.development
+    ports:
+      - "5051:5051/tcp"
+    volumes:
+      - .:/app
+  ipfs:
+    image: ipfs/go-ipfs
+    ports: 
+      - "5001:5001/tcp"

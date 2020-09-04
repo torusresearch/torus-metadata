@@ -1,0 +1,77 @@
+{
+  "name": "torus-metadata-js",
+  "version": "1.0.0",
+  "description": "Torus metadata server",
+  "main": "index.js",
+  "scripts": {
+    "dev": "docker-compose up --build",
+    "serve": "nodemon index.js",
+    "start": "node index.js",
+    "prod": "node index.js",
+    "migrate": "knex migrate:unlock --knexfile ./database/knexfile.js && knex migrate:latest --knexfile ./database/knexfile.js",
+    "migrate:down": "knex migrate:down --knexfile ./database/knexfile.js",
+    "lint:js": "eslint --fix '**/*.js'"
+  },
+  "keywords": [],
+  "author": "Chaitanya Potti",
+  "license": "ISC",
+  "dependencies": {
+    "body-parser": "^1.19.0",
+    "cors": "^2.8.5",
+    "dotenv": "^8.2.0",
+    "elliptic": "^6.5.3",
+    "express": "^4.17.1",
+    "helmet": "^4.1.0",
+    "ipfs-http-client": "^46.1.0",
+    "js-sha3": "^0.8.0",
+    "json-stable-stringify": "^1.0.1",
+    "knex": "^0.21.5",
+    "loglevel": "^1.7.0",
+    "morgan": "^1.10.0",
+    "mysql": "^2.18.1"
+  },
+  "devDependencies": {
+    "eslint": "^7.8.1",
+    "eslint-config-airbnb-base": "^14.2.0",
+    "eslint-config-prettier": "^6.11.0",
+    "eslint-config-problems": "^5.0.0",
+    "eslint-config-standard": "^14.1.1",
+    "eslint-plugin-chai-expect": "^2.2.0",
+    "eslint-plugin-import": "^2.22.0",
+    "eslint-plugin-mocha": "^8.0.0",
+    "eslint-plugin-node": "^11.1.0",
+    "eslint-plugin-only-error": "^1.0.2",
+    "eslint-plugin-prettier": "^3.1.4",
+    "eslint-plugin-promise": "^4.2.1",
+    "eslint-plugin-security": "^1.4.0",
+    "eslint-plugin-standard": "^4.0.1",
+    "husky": "^4.2.5",
+    "lint-staged": "^10.2.13",
+    "nodemon": "^2.0.4",
+    "prettier": "^2.1.1"
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged"
+    }
+  },
+  "lint-staged": {
+    "*.{js,css,json,md}": [
+      "prettier --write"
+    ],
+    "*.js": [
+      "eslint --fix"
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/torusresearch/torus-metadata-js.git"
+  },
+  "bugs": {
+    "url": "https://github.com/torusresearch/torus-metadata-js/issues"
+  },
+  "homepage": "https://github.com/torusresearch/torus-metadata-js#readme",
+  "engines": {
+    "node": ">=10.0.0"
+  }
+}
