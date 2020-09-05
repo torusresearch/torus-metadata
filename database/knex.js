@@ -14,5 +14,9 @@ if (process.env.NODE_ENV === "production") {
 const knexRead = require("knex")(dbConfig1);
 const knexWrite = require("knex")(dbConfig2);
 
+const { attachOnDuplicateUpdate } = require("knex-on-duplicate-update");
+
+attachOnDuplicateUpdate();
+
 exports.knexRead = knexRead;
 exports.knexWrite = knexWrite;
