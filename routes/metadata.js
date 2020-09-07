@@ -2,7 +2,7 @@ const log = require("loglevel");
 const express = require("express");
 const IpfsHttpClient = require("ipfs-http-client");
 
-const client = IpfsHttpClient({ host: "ipfs" });
+const client = IpfsHttpClient({ host: "localhost" });
 
 const { getError, constructKey } = require("../utils");
 const { validationMiddleware, validationLoopMiddleware, validateMetadataLoopInput, validateLoopSignature } = require("../middleware");
@@ -16,7 +16,6 @@ router.post("/get", validationMiddleware(["pub_key_X", "pub_key_Y"]), async (req
     const { namespace, pub_key_X: pubKeyX, pub_key_Y: pubKeyY } = req.body;
     const key = constructKey(pubKeyX, pubKeyY, namespace);
     const data = await knexRead("data").where({ key }).first();
-    log.info(key, data);
     return res.json({ message: (data && data.value) || "" });
   } catch (error) {
     log.error("get metadata failed", error);
