@@ -12,3 +12,5 @@ exports.constructKey = (pubKeyX, pubKeyY, namespace) => {
   if (namespace) key += `\x1c${namespace}`;
   return key;
 };
+
+exports.REDIS_TIMEOUT = 10; // seconds
