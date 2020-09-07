@@ -3,7 +3,7 @@ const express = require("express");
 const IpfsHttpClient = require("ipfs-http-client");
 const pify = require("pify");
 
-const client = IpfsHttpClient({ host: "ipfs" });
+const client = IpfsHttpClient({ host: process.env.IPFS_HOSTNAME });
 
 const { getError, constructKey, REDIS_TIMEOUT } = require("../utils");
 const { validationMiddleware, validationLoopMiddleware, validateMetadataLoopInput, validateLoopSignature } = require("../middleware");
