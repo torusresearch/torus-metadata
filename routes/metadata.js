@@ -1,22 +1,35 @@
 const log = require("loglevel");
 const express = require("express");
 const IpfsHttpClient = require("ipfs-http-client");
+const pify = require("pify");
 
-const client = IpfsHttpClient({ host: "localhost" });
+const client = IpfsHttpClient({ host: process.env.IPFS_HOSTNAME });
 
-const { getError, constructKey } = require("../utils");
+const { getError, constructKey, REDIS_TIMEOUT } = require("../utils");
 const { validationMiddleware, validationLoopMiddleware, validateMetadataLoopInput, validateLoopSignature } = require("../middleware");
-const { knexRead, knexWrite } = require("../database");
+const { knexRead, knexWrite, redisClient } = require("../database");
 const { validateMetadataInput, validateSignature } = require("../middleware");
 
 const router = express.Router();
+const redis = pify(redisClient);
+// 10 sec
 
 router.post("/get", validationMiddleware(["pub_key_X", "pub_key_Y"]), async (req, res) => {
   try {
     const { namespace, pub_key_X: pubKeyX, pub_key_Y: pubKeyY } = req.body;
     const key = constructKey(pubKeyX, pubKeyY, namespace);
-    const data = await knexRead("data").where({ key }).first();
-    return res.json({ message: (data && data.value) || "" });
+    let value;
+    try {
+      value = await redis.get(key);
+    } catch (error) {
+      log.warn("redis get failed", error);
+    }
+
+    if (!value) {
+      const data = await knexRead("data").where({ key }).first();
+      value = (data && data.value) || "";
+    }
+    return res.json({ message: value });
   } catch (error) {
     log.error("get metadata failed", error);
     return res.status(500).json({ error: getError(error), success: false });
@@ -38,6 +51,12 @@ router.post("/set", validationMiddleware([("pub_key_X", "pub_key_Y", "signature"
         value: data,
       })
       .onDuplicateUpdate("value", { updated_at: new Date(Date.now()) });
+
+    try {
+      await redis.setex(key, REDIS_TIMEOUT, data);
+    } catch (error) {
+      log.warn("redis set failed", error);
+    }
 
     const ipfsResult = await client.add({ path: key, content: data });
     return res.json({ message: ipfsResult.cid.toBaseEncodedString() });
@@ -67,6 +86,12 @@ router.post(
       await knexWrite("data")
         .insert(requiredData)
         .onDuplicateUpdate("value", { updated_at: new Date(Date.now()) });
+
+      try {
+        await Promise.all(requiredData.map((x) => redis.setex(x.key, REDIS_TIMEOUT, x.value)));
+      } catch (error) {
+        log.warn("redis bulk set failed", error);
+      }
 
       const ipfsResultIterator = client.addAll(
         requiredData.map((x) => {
