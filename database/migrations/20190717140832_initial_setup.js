@@ -4,7 +4,7 @@ exports.up = function (knex) {
     table.timestamp("created_at").notNullable().defaultTo(knex.fn.now());
     table.timestamp("updated_at").notNullable().defaultTo(knex.fn.now());
     table.string("key", 255).notNullable().unique();
-    table.string("value", 32767).notNullable().defaultTo("");
+    table.text("value", "mediumtext").notNullable().defaultTo("");
   });
 };
 

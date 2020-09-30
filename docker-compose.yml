@@ -11,6 +11,7 @@ services:
   mysql:
     restart: always
     image: mysql:5.7
+    command: --max_allowed_packet=32505856
     env_file:
       - ./.env.development
     ports:

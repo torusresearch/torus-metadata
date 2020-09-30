@@ -54,7 +54,7 @@ exports.validateMetadataInput = async (req, res, next) => {
   }
   const { timestamp } = setData;
   const timeParsed = parseInt(timestamp, 16);
-  if (~~(Date.now() / 1000) - timeParsed > 1) {
+  if (~~(Date.now() / 1000) - timeParsed > 60) {
     errors.timestamp = "Message has been signed more than 60s ago";
     return res.status(403).json({ error: errors, success: false });
   }
@@ -77,7 +77,7 @@ exports.validateMetadataLoopInput = (key, isBody = true) => {
       }
       const { timestamp } = setData;
       const timeParsed = parseInt(timestamp, 16);
-      if (~~(Date.now() / 1000) - timeParsed > 1) {
+      if (~~(Date.now() / 1000) - timeParsed > 60) {
         errors.timestamp = "Message has been signed more than 60s ago";
         return res.status(403).json({ error: errors, success: false });
       }
