@@ -11,3 +11,15 @@ exports.up = function (knex) {
 exports.down = function (knex) {
   return knex.schema.dropTable("data");
 };
+
+/*
+CREATE TABLE `data` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `created_at` datetime DEFAULT NULL,
+  `updated_at` datetime DEFAULT NULL,
+  `key` varchar(255) NOT NULL,
+  `value` mediumtext,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `key` (`key`),
+) ENGINE=InnoDB AUTO_INCREMENT=8439 DEFAULT CHARSET=utf8mb4
+*/
