@@ -13,6 +13,13 @@ exports.down = function (knex) {
 };
 
 /*
+
+-- CREATE TABLE metadata.data_backup2 AS
+--    SELECT *
+--    FROM metadata.data;
+-- drop table metadata.data;
+
+
 CREATE TABLE `data` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
   `created_at` datetime DEFAULT NULL,
