@@ -40,7 +40,6 @@ router.post("/acquireLock", validateLockData, async (req, res) => {
 router.post("/releaseLock", validateLockData, async (req, res) => {
   try {
     const { key, id } = req.body;
-    // verify signature here
 
     let value;
     try {
