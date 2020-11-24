@@ -13,4 +13,8 @@ exports.constructKey = (pubKeyX, pubKeyY, namespace) => {
   return key;
 };
 
+exports.randomID = () => {
+  return `${Math.random().toString(36).substr(2, 9)}`;
+};
+
 exports.REDIS_TIMEOUT = 10; // seconds
