@@ -26,7 +26,7 @@ router.post("/get", validationMiddleware(["pub_key_X", "pub_key_Y"]), async (req
     }
 
     if (!value) {
-      const data = await knexRead("data").where({ key }).first();
+      const data = await knexRead("data").where({ key }).orderBy("id", "desc").first();
       value = (data && data.value) || "";
     }
     return res.json({ message: value });
@@ -45,12 +45,10 @@ router.post("/set", validationMiddleware([("pub_key_X", "pub_key_Y", "signature"
       set_data: { data },
     } = req.body;
     const key = constructKey(pubKeyX, pubKeyY, namespace);
-    await knexWrite("data")
-      .insert({
-        key,
-        value: data,
-      })
-      .onDuplicateUpdate("value", { updated_at: new Date(Date.now()) });
+    await knexWrite("data").insert({
+      key,
+      value: data,
+    });
 
     try {
       await redis.setex(key, REDIS_TIMEOUT, data);
@@ -83,9 +81,7 @@ router.post(
         } = x;
         return { key: constructKey(pubKeyX, pubKeyY, namespace), value: data };
       });
-      await knexWrite("data")
-        .insert(requiredData)
-        .onDuplicateUpdate("value", { updated_at: new Date(Date.now()) });
+      await knexWrite("data").insert(requiredData);
 
       try {
         await Promise.all(requiredData.map((x) => redis.setex(x.key, REDIS_TIMEOUT, x.value)));
