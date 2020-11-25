@@ -7,7 +7,7 @@ services:
     env_file:
       - ./.env.development
     ports:
-      - "6380:6379"
+      - "6379:6379"
   mysql:
     restart: always
     image: mysql:5.7
