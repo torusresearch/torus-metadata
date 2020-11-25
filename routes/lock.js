@@ -4,12 +4,16 @@ const pify = require("pify");
 
 const { validateLockData } = require("../middleware");
 
-const { getError, REDIS_TIMEOUT, randomID } = require("../utils");
+const { getError, REDIS_LOCK_TIMEOUT, randomID } = require("../utils");
 const { redisClient } = require("../database");
 
 const router = express.Router();
 const redis = pify(redisClient);
-// 10 sec
+
+// status
+// 0: no changes made to redis
+// 1: acquire/release lock succeded
+// 2: unable to release lock
 
 router.post("/acquireLock", validateLockData, async (req, res) => {
   const { key: pubKey } = req.body;
@@ -24,7 +28,7 @@ router.post("/acquireLock", validateLockData, async (req, res) => {
     if (!value) {
       try {
         const id = randomID();
-        await redis.setex(pubKey, REDIS_TIMEOUT, id);
+        await redis.setex(pubKey, REDIS_LOCK_TIMEOUT, id);
         return res.json({ status: 1, id });
       } catch (error) {
         log.warn("redis set failed", error);

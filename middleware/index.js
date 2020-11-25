@@ -140,14 +140,19 @@ exports.validateLoopSignature = (key, isBody = true) => {
 };
 
 exports.validateLockData = (req, res, next) => {
-  const { key: pubKey, signature, data } = req.body;
-  // verify signature here
-  const isValidSignature = elliptic.verify(stringify(data), signature, Buffer.from(pubKey, "hex"));
-  if (!isValidSignature) return res.status(403).json({ error: "Invalid Signature", status: 0 });
-  // protection against old signature
-  const { timeStamp } = data;
-  if (~~(Date.now() / 1000) - timeStamp > 60) {
-    return res.status(403).json({ error: "Message has been signed more than 60s ago", status: 0 });
+  try {
+    const { key: pubKey, signature, data } = req.body;
+    // verify signature here
+    const isValidSignature = elliptic.verify(stringify(data), signature, Buffer.from(pubKey, "hex"));
+    if (!isValidSignature) return res.status(403).json({ error: "Invalid Signature", status: 0 });
+    // protection against old signature
+    const { timeStamp } = data;
+    if (~~(Date.now() / 1000) - timeStamp > 60) {
+      return res.status(403).json({ error: "Message has been signed more than 60s ago", status: 0 });
+    }
+    return next();
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: getError(error), status: 0 });
   }
-  return next();
 };

@@ -18,3 +18,4 @@ exports.randomID = () => {
 };
 
 exports.REDIS_TIMEOUT = 10; // seconds
+exports.REDIS_LOCK_TIMEOUT = 30;
