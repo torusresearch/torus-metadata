@@ -143,7 +143,7 @@ exports.validateLockData = (req, res, next) => {
   try {
     const { key: pubKey, signature, data } = req.body;
     // verify signature here
-    const isValidSignature = elliptic.verify(stringify(data), signature, Buffer.from(pubKey, "hex"));
+    const isValidSignature = elliptic.verify(keccak256(stringify(data)), signature, Buffer.from(pubKey, "hex"));
     if (!isValidSignature) return res.status(403).json({ error: "Invalid Signature", status: 0 });
     // protection against old signature
     const { timeStamp } = data;
