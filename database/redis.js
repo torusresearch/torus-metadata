@@ -8,4 +8,8 @@ client.on("error", (error) => {
   log.error(error);
 });
 
+client.on("ready", () => {
+  log.info("Connected to redis");
+});
+
 module.exports = client;
