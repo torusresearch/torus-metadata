@@ -13,7 +13,7 @@ log.info({
 });
 
 function afterCreate(conn, done) {
-  if (!process.env.RDS_HOSTNAME_WRITE.includes("ap-southeast-1")) {
+  if (process.env.IS_AURORA_READ_REPLICA === "true") {
     conn.query("SET aurora_replica_read_consistency='SESSION';", (err) => {
       if (err) {
         // first query failed, return error and don't try to make next query
