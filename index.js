@@ -27,6 +27,8 @@ const corsOptions = {
   maxAge: 86400,
 };
 
+app.disable("x-powered-by");
+
 if (process.env.NODE_ENV === "development") app.use(morgan("tiny")); // HTTP logging
 app.use(cors(corsOptions)); // middleware to enables cors
 app.use(helmet()); // middleware which adds http headers
