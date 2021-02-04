@@ -23,7 +23,7 @@ const corsOptions = {
   origin: true,
   credentials: false,
   allowedHeaders: ["Content-Type", "x-api-key", "x-embed-host"],
-  methods: "GET,POST,OPTIONS",
+  methods: "GET,POST",
   maxAge: 86400,
 };
 
