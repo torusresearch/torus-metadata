@@ -20,11 +20,11 @@ if (process.env.NODE_ENV === "development") {
 // setup middleware
 const corsOptions = {
   //   origin: ["https://localhost:3000", /\.tor\.us$/],
-  origin: "*",
+  origin: true,
   credentials: false,
-  allowedHeaders: ["Content-Type", "Authorization", "x-api-key", "x-embed-host"],
-  methods: "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS",
-  maxAge: 600,
+  allowedHeaders: ["Content-Type", "x-api-key", "x-embed-host"],
+  methods: "GET,POST,OPTIONS",
+  maxAge: 86400,
 };
 
 if (process.env.NODE_ENV === "development") app.use(morgan("tiny")); // HTTP logging
