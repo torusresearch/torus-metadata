@@ -8,8 +8,8 @@
     "serve": "nodemon index.js",
     "start": "node index.js",
     "prod": "node index.js",
-    "migrate": "knex migrate:unlock --knexfile ./database/knexfile.js && knex migrate:latest --knexfile ./database/knexfile.js",
-    "migrate:down": "knex migrate:down --knexfile ./database/knexfile.js",
+    "migrate": "./node_modules/.bin/knex migrate:unlock --knexfile ./database/knexfile.js && ./node_modules/.bin/knex migrate:latest --knexfile ./database/knexfile.js",
+    "migrate:down": "./node_modules/.bin/knex migrate:down --knexfile ./database/knexfile.js",
     "lint:js": "eslint --fix '**/*.js'"
   },
   "keywords": [],
