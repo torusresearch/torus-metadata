@@ -117,7 +117,7 @@ router.post("/bulk_set_stream", upload.none(), async (req, res) => {
     const newBody = req.body;
     const requiredData = Object.values(newBody).map((x) => {
       const tempData = JSON.parse(x);
-      console.log(tempData);
+      // console.log(tempData);
       const {
         namespace,
         pub_key_X: pubKeyX,
