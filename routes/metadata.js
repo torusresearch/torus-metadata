@@ -4,7 +4,9 @@ const IpfsHttpClient = require("ipfs-http-client");
 const pify = require("pify");
 const multer = require("multer");
 
-const upload = multer();
+const upload = multer({
+  limits: { fieldSize: 25 * 1024 * 1024 },
+});
 
 const client = IpfsHttpClient({ host: process.env.IPFS_HOSTNAME });
 
@@ -115,6 +117,7 @@ router.post(
 router.post("/bulk_set_stream", upload.none(), async (req, res) => {
   try {
     const newBody = req.body;
+    console.log(req.headers["content-length"]);
     const requiredData = Object.values(newBody).map((x) => {
       const tempData = JSON.parse(x);
       // console.log(tempData);
@@ -147,6 +150,7 @@ router.post("/bulk_set_stream", upload.none(), async (req, res) => {
       ipfsResult.push(entry);
     }
     return res.json({ message: ipfsResult.map((x) => x.cid.toBaseEncodedString()) });
+    // return res.json({ message: "sucess" });
   } catch (error) {
     log.error("bulk set metadata failed", error);
     return res.status(500).json({ error: getError(error), success: false });
