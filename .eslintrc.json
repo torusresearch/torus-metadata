@@ -12,7 +12,7 @@
     "plugin:node/recommended",
     "prettier"
   ],
-  "plugins": ["prettier", "promise", "standard", "chai-expect", "mocha", "security", "node"],
+  "plugins": ["prettier", "promise", "chai-expect", "mocha", "security", "node"],
   "parserOptions": {
     "sourceType": "module"
   },
