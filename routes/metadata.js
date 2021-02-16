@@ -11,7 +11,13 @@ const upload = multer({
 const client = IpfsHttpClient({ host: process.env.IPFS_HOSTNAME });
 
 const { getError, constructKey, REDIS_TIMEOUT } = require("../utils");
-const { validationMiddleware, validationLoopMiddleware, validateMetadataLoopInput, validateLoopSignature } = require("../middleware");
+const {
+  validationMiddleware,
+  validationLoopMiddleware,
+  validateMetadataLoopInput,
+  validateLoopSignature,
+  serializeStreamBody,
+} = require("../middleware");
 const { knexRead, knexWrite, redisClient } = require("../database");
 const { validateMetadataInput, validateSignature } = require("../middleware");
 
@@ -114,47 +120,53 @@ router.post(
   }
 );
 
-router.post("/bulk_set_stream", upload.none(), async (req, res) => {
-  try {
-    const newBody = req.body;
-    // console.log(req.headers["content-length"]);
-    const requiredData = Object.values(newBody).map((x) => {
-      const tempData = JSON.parse(x);
-      // console.log(tempData);
-      const {
-        namespace,
-        pub_key_X: pubKeyX,
-        pub_key_Y: pubKeyY,
-        set_data: { data },
-      } = tempData;
-      return { key: constructKey(pubKeyX, pubKeyY, namespace), value: data };
-    });
-    await knexWrite("data").insert(requiredData);
-
+router.post(
+  "/bulk_set_stream",
+  upload.none(),
+  serializeStreamBody,
+  validationLoopMiddleware([("pub_key_X", "pub_key_Y", "signature")], "shares"),
+  validateMetadataLoopInput("shares"),
+  validateLoopSignature("shares"),
+  async (req, res) => {
     try {
-      await Promise.all(requiredData.map((x) => redis.setex(x.key, REDIS_TIMEOUT, x.value)));
-    } catch (error) {
-      log.warn("redis bulk set failed", error);
-    }
+      const { shares } = req.body;
+      // console.log(req.headers["content-length"]);
+      const requiredData = shares.map((x) => {
+        const {
+          namespace,
+          pub_key_X: pubKeyX,
+          pub_key_Y: pubKeyY,
+          set_data: { data },
+        } = x;
+        return { key: constructKey(pubKeyX, pubKeyY, namespace), value: data };
+      });
+      await knexWrite("data").insert(requiredData);
 
-    const ipfsResultIterator = client.addAll(
-      requiredData.map((x) => {
-        return {
-          path: x.key,
-          content: x.value,
-        };
-      })
-    );
-    const ipfsResult = [];
-    for await (const entry of ipfsResultIterator) {
-      ipfsResult.push(entry);
+      try {
+        await Promise.all(requiredData.map((x) => redis.setex(x.key, REDIS_TIMEOUT, x.value)));
+      } catch (error) {
+        log.warn("redis bulk set failed", error);
+      }
+
+      const ipfsResultIterator = client.addAll(
+        requiredData.map((x) => {
+          return {
+            path: x.key,
+            content: x.value,
+          };
+        })
+      );
+      const ipfsResult = [];
+      for await (const entry of ipfsResultIterator) {
+        ipfsResult.push(entry);
+      }
+      return res.json({ message: ipfsResult.map((x) => x.cid.toBaseEncodedString()) });
+      // return res.json({ message: "sucess" });
+    } catch (error) {
+      log.error("bulk set metadata failed", error);
+      return res.status(500).json({ error: getError(error), success: false });
     }
-    return res.json({ message: ipfsResult.map((x) => x.cid.toBaseEncodedString()) });
-    // return res.json({ message: "sucess" });
-  } catch (error) {
-    log.error("bulk set metadata failed", error);
-    return res.status(500).json({ error: getError(error), success: false });
   }
-});
+);
 
 module.exports = router;

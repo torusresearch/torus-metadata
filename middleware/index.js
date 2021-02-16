@@ -156,3 +156,15 @@ exports.validateLockData = (req, res, next) => {
     return res.status(500).json({ error: getError(error), status: 0 });
   }
 };
+
+exports.serializeStreamBody = (req, res, next) => {
+  try {
+    const stream = req.body;
+    const shares = Object.values(stream).map((el) => JSON.parse(el));
+    req.body = { shares };
+    return next();
+  } catch (error) {
+    console.trace("serializeStreamBody internal error", error);
+    return res.status(500).json({ error: getError(error), status: 0 });
+  }
+};
