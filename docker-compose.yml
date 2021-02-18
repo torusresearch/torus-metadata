@@ -5,7 +5,7 @@ services:
     restart: always
     image: redis
     env_file:
-      - ./.env.development
+      - ./.env
     ports:
       - "6379:6379"
   mysql:
@@ -13,7 +13,7 @@ services:
     image: mysql:5.7
     command: --max_allowed_packet=32505856
     env_file:
-      - ./.env.development
+      - ./.env
     ports:
       - "3306:3306"
   torus-metadata:
@@ -23,9 +23,9 @@ services:
       - ipfs
     build:
       context: .
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile
     env_file:
-      - ./.env.development
+      - ./.env
     ports:
       - "5051:5051/tcp"
     volumes:

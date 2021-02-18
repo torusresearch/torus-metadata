@@ -130,7 +130,6 @@ router.post(
   async (req, res) => {
     try {
       const { shares } = req.body;
-      // console.log(req.headers["content-length"]);
       const requiredData = shares.map((x) => {
         const {
           namespace,
