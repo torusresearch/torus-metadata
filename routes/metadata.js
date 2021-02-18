@@ -160,9 +160,8 @@ router.post(
         ipfsResult.push(entry);
       }
       return res.json({ message: ipfsResult.map((x) => x.cid.toBaseEncodedString()) });
-      // return res.json({ message: "sucess" });
     } catch (error) {
-      log.error("bulk set metadata failed", error);
+      log.error("set stream metadata failed", error);
       return res.status(500).json({ error: getError(error), success: false });
     }
   }
