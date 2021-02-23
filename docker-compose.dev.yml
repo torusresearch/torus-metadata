@@ -8,10 +8,6 @@ services:
       - ./.env.development
     ports:
       - "6379:6379"
-    deploy:
-      resources:
-        limits:
-          cpus: '2.00'
   mysql:
     restart: always
     image: mysql:5.7
@@ -20,10 +16,6 @@ services:
       - ./.env.development
     ports:
       - "3306:3306"
-    deploy:
-      resources:
-        limits:
-          cpus: '2.00'
   torus-metadata:
     restart: always
     depends_on:
@@ -38,15 +30,7 @@ services:
       - "5051:5051/tcp"
     volumes:
       - .:/app
-    deploy:
-      resources:
-        limits:
-          cpus: '2.00'
   ipfs:
     image: ipfs/go-ipfs
     ports: 
       - "5001:5001/tcp"
-    deploy:
-      resources:
-        limits:
-          cpus: '2.00'
