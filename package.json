@@ -32,7 +32,8 @@
     "multer": "^1.4.2",
     "mysql": "^2.18.1",
     "pify": "^5.0.0",
-    "redis": "^3.0.2"
+    "redis": "^3.0.2",
+    "express-prom-bundle": "^6.3.4"
   },
   "devDependencies": {
     "eslint": "^7.8.1",
@@ -52,7 +53,8 @@
     "husky": "^4.2.5",
     "lint-staged": "^10.2.13",
     "nodemon": "^2.0.4",
-    "prettier": "^2.1.1"
+    "prettier": "^2.1.1",
+    "prom-client": "^13.1.0"
   },
   "husky": {
     "hooks": {

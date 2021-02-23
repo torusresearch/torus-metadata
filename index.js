@@ -5,6 +5,10 @@ const cors = require("cors");
 const morgan = require("morgan");
 const log = require("loglevel");
 
+const promBundle = require("express-prom-bundle");
+
+const promMetrics = promBundle({ includePath: true });
+
 // setup app
 const app = express();
 
@@ -38,6 +42,7 @@ app.use(bodyParser.json({ limit: "10mb" })); // converts body to json
 // bring all routes here
 const routes = require("./routes");
 
+app.use(promMetrics);
 app.use("/", routes);
 
 const port = process.env.PORT || 5051;
