@@ -67,3 +67,4 @@ serverless.env.yml
 
 #Documentation
 documentation/
+/prometheus
