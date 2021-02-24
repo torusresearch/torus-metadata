@@ -101,12 +101,10 @@ router.post(
       }
 
       const ipfsResultIterator = client.addAll(
-        requiredData.map((x) => {
-          return {
-            path: x.key,
-            content: x.value,
-          };
-        })
+        requiredData.map((x) => ({
+          path: x.key,
+          content: x.value,
+        }))
       );
       const ipfsResult = [];
       for await (const entry of ipfsResultIterator) {
@@ -148,12 +146,10 @@ router.post(
       }
 
       const ipfsResultIterator = client.addAll(
-        requiredData.map((x) => {
-          return {
-            path: x.key,
-            content: x.value,
-          };
-        })
+        requiredData.map((x) => ({
+          path: x.key,
+          content: x.value,
+        }))
       );
       const ipfsResult = [];
       for await (const entry of ipfsResultIterator) {
