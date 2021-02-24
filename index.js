@@ -4,11 +4,24 @@ const helmet = require("helmet");
 const cors = require("cors");
 const morgan = require("morgan");
 const log = require("loglevel");
-
+const ResponseTime = require("response-time");
 const { register, collectDefaultMetrics } = require("prom-client");
+const client = require("prom-client");
 // enable prom-client to expose default application metrics
 collectDefaultMetrics({
   timeout: 10000,
+});
+
+const httpSummary = new client.Summary({
+  name: "http_responses_summary",
+  help: "Response time in millis",
+  labelNames: ["method", "path", "status"],
+});
+
+const httpCounter = new client.Counter({
+  name: "http_request_count",
+  help: "Number of http requests",
+  labelNames: ["method", "path", "status"],
 });
 
 // setup app
@@ -40,16 +53,21 @@ app.use(cors(corsOptions)); // middleware to enables cors
 app.use(helmet()); // middleware which adds http headers
 app.use(bodyParser.urlencoded({ extended: false, limit: "10mb" })); // middleware which parses body
 app.use(bodyParser.json({ limit: "10mb" })); // converts body to json
-app.get("/metrics", async (req, res) => {
-  try {
-    res.set("Content-Type", register.contentType);
-    const met = await register.metrics();
-    res.send(met);
-  } catch (error) {
-    console.log("metrics route error", error);
-  }
-});
 
+app.use(
+  ResponseTime((req, res, time) => {
+    if (req.path !== "/metrics") {
+      httpSummary.labels({ method: req.method, path: req.path, status: res.statusCode }).observe(time);
+      httpCounter.inc({ method: req.method, path: req.path, status: res.statusCode });
+    }
+  })
+);
+
+app.get("/metrics", async (req, res) => {
+  res.set("Content-Type", register.contentType);
+  const met = await register.metrics();
+  return res.send(met);
+});
 // bring all routes here
 const routes = require("./routes");
 
