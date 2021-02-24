@@ -9,8 +9,8 @@
     "serve": "nodemon index.js",
     "start": "node index.js",
     "prod": "node index.js",
-    "migrate": "./node_modules/.bin/knex migrate:unlock --knexfile ./database/knexfile.js && ./node_modules/.bin/knex migrate:latest --knexfile ./database/knexfile.js",
-    "migrate:down": "./node_modules/.bin/knex migrate:down --knexfile ./database/knexfile.js",
+    "migrate": "npx knex migrate:unlock --knexfile ./database/knexfile.js && npx knex migrate:latest --knexfile ./database/knexfile.js",
+    "migrate:down": "npx knex migrate:down --knexfile ./database/knexfile.js",
     "lint:js": "eslint --fix '**/*.js'"
   },
   "keywords": [],
