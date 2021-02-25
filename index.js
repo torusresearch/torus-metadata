@@ -9,6 +9,7 @@ const { register, collectDefaultMetrics } = require("prom-client");
 const client = require("prom-client");
 // enable prom-client to expose default application metrics
 collectDefaultMetrics({
+  register,
   timeout: 10000,
 });
 
