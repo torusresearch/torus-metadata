@@ -11,10 +11,14 @@ services:
   prometheus:
     container_name: prometheus
     image: prom/prometheus:v2.19.0
+    ulimits:
+      nofile:
+        soft: 98304
+        hard: 98304
     user: root # https://github.com/prometheus/prometheus/issues/5976
     restart: on-failure
     hostname: prometheus
-    command: --storage.tsdb.retention.time=31d --config.file=/etc/prometheus/prometheus.yml --ulimit nofile=1024000:1024000
+    command: --storage.tsdb.retention.time=31d --config.file=/etc/prometheus/prometheus.yml
     ports:
       - 9090:9090
     volumes:
@@ -25,8 +29,11 @@ services:
     - cadvisor
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:latest
+    ulimits:
+      nofile:
+        soft: 98304
+        hard: 98304
     container_name: cadvisor
-    command: --ulimit nofile=1024000:1024000
     ports:
     - 8080:8080
     volumes:
@@ -39,8 +46,11 @@ services:
     - mysql
   redis:
     restart: always
-    command: --ulimit nofile=1024000:1024000
     image: redis
+    ulimits:
+      nofile:
+        soft: 98304
+        hard: 98304
     env_file:
       - ./.env.development
     ports:
@@ -48,14 +58,17 @@ services:
   mysql:
     restart: always
     image: mysql:5.7
-    command: --max_allowed_packet=32505856 --ulimit nofile=1024000:1024000
+    ulimits:
+      nofile:
+        soft: 98304
+        hard: 98304
+    command: --max_allowed_packet=32505856 
     env_file:
       - ./.env.development
     ports:
       - "3306:3306"
   torus-metadata:
     restart: always
-    command: --ulimit nofile=1024000:1024000
     depends_on:
       - mysql
       - ipfs
