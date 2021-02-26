@@ -21,4 +21,4 @@ scrape_configs:
         
   - job_name: 'node-exporter'
     static_configs:
-      - targets: ['http://ec2-52-192-172-41.ap-northeast-1.compute.amazonaws.com:9100']
+      - targets: ['ec2-52-192-172-41.ap-northeast-1.compute.amazonaws.com:9100']
