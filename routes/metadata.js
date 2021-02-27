@@ -145,17 +145,19 @@ router.post(
         log.warn("redis bulk set failed", error);
       }
 
-      const ipfsResultIterator = client.addAll(
-        requiredData.map((x) => ({
-          path: x.key,
-          content: x.value,
-        }))
-      );
-      const ipfsResult = [];
-      for await (const entry of ipfsResultIterator) {
-        ipfsResult.push(entry);
-      }
-      return res.json({ message: ipfsResult.map((x) => x.cid.toBaseEncodedString()) });
+      // const ipfsResultIterator = client.addAll(
+      //   requiredData.map((x) => ({
+      //     path: x.key,
+      //     content: x.value,
+      //   }))
+      // );
+      // const ipfsResult = [];
+      // for await (const entry of ipfsResultIterator) {
+      //   ipfsResult.push(entry);
+      // }
+      // return res.json({ message: ipfsResult.map((x) => x.cid.toBaseEncodedString()) });
+
+      res.json(200);
     } catch (error) {
       log.error("set stream metadata failed", error);
       return res.status(500).json({ error: getError(error), success: false });
