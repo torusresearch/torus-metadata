@@ -1,6 +1,7 @@
 const express = require("express");
 const bodyParser = require("body-parser");
 const helmet = require("helmet");
+
 const cors = require("cors");
 const morgan = require("morgan");
 const log = require("loglevel");
@@ -8,6 +9,8 @@ const ResponseTime = require("response-time");
 const { register, collectDefaultMetrics } = require("prom-client");
 const client = require("prom-client");
 const heapdump = require("heapdump");
+
+heapdump.writeSnapshot(`/var/local/${Date.now()}.heapsnapshot`);
 
 // enable prom-client to expose default application metrics
 collectDefaultMetrics({
@@ -29,11 +32,6 @@ const httpCounter = new client.Counter({
 
 // setup app
 const app = express();
-
-heapdump.writeSnapshot(`/${Date.now()}.heapsnapshot`);
-heapdump.writeSnapshot((err, filename) => {
-  console.log("dump written to", filename);
-});
 
 // Setup environment
 require("dotenv").config();

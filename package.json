@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "docker-compose -f docker-compose.dev.yml up --build",
-    "serve": "env NODE_HEAPDUMP_OPTIONS=nosignal node index.js",
+    "serve": "node index.js",
     "start": "node index.js",
     "prod": "node index.js",
     "migrate": "npx knex migrate:unlock --knexfile ./database/knexfile.js && npx knex migrate:latest --knexfile ./database/knexfile.js",

@@ -8,42 +8,42 @@ x-logging: &logging
                         max-size: "100m"
 
 services:
-  prometheus:
-    container_name: prometheus
-    image: prom/prometheus:v2.19.0
-    ulimits:
-      nofile:
-        soft: 98304
-        hard: 98304
-    user: root # https://github.com/prometheus/prometheus/issues/5976
-    restart: on-failure
-    hostname: prometheus
-    command: --storage.tsdb.retention.time=31d --config.file=/etc/prometheus/prometheus.yml
-    ports:
-      - 9090:9090
-    volumes:
-      - ./config/prometheus.yaml:/etc/prometheus/prometheus.yml
-      - ./prometheus:/prometheus
-    <<: *logging
-    depends_on: 
-    - cadvisor
-  cadvisor:
-    image: gcr.io/cadvisor/cadvisor:latest
-    ulimits:
-      nofile:
-        soft: 98304
-        hard: 98304
-    container_name: cadvisor
-    ports:
-    - 8080:8080
-    volumes:
-    - /:/rootfs:ro
-    - /var/run:/var/run:rw
-    - /sys:/sys:ro
-    - /var/lib/docker/:/var/lib/docker:ro
-    depends_on:
-    - redis
-    - mysql
+  # prometheus:
+  #   container_name: prometheus
+  #   image: prom/prometheus:v2.19.0
+  #   ulimits:
+  #     nofile:
+  #       soft: 98304
+  #       hard: 98304
+  #   user: root # https://github.com/prometheus/prometheus/issues/5976
+  #   restart: on-failure
+  #   hostname: prometheus
+  #   command: --storage.tsdb.retention.time=31d --config.file=/etc/prometheus/prometheus.yml
+  #   ports:
+  #     - 9090:9090
+  #   volumes:
+  #     - ./config/prometheus.yaml:/etc/prometheus/prometheus.yml
+  #     - ./prometheus:/prometheus
+  #   <<: *logging
+  #   depends_on: 
+  #   - cadvisor
+  # cadvisor:
+  #   image: gcr.io/cadvisor/cadvisor:latest
+  #   ulimits:
+  #     nofile:
+  #       soft: 98304
+  #       hard: 98304
+  #   container_name: cadvisor
+  #   ports:
+  #   - 8080:8080
+  #   volumes:
+  #   - /:/rootfs:ro
+  #   - /var/run:/var/run:rw
+  #   - /sys:/sys:ro
+  #   - /var/lib/docker/:/var/lib/docker:ro
+  #   depends_on:
+  #   - redis
+  #   - mysql
   redis:
     restart: always
     image: redis
