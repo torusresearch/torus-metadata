@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "docker-compose -f docker-compose.dev.yml up --build",
-    "serve": "node --prof index.js",
+    "serve": "env NODE_HEAPDUMP_OPTIONS=nosignal node index.js",
     "start": "node index.js",
     "prod": "node index.js",
     "migrate": "npx knex migrate:unlock --knexfile ./database/knexfile.js && npx knex migrate:latest --knexfile ./database/knexfile.js",
@@ -21,6 +21,7 @@
     "dotenv": "^8.2.0",
     "elliptic": "^6.5.3",
     "express": "^4.17.1",
+    "heapdump": "^0.3.15",
     "helmet": "^4.1.0",
     "ipfs-http-client": "^46.1.0",
     "js-sha3": "^0.8.0",
