@@ -43,7 +43,6 @@ services:
     - /var/lib/docker/:/var/lib/docker:ro
     depends_on:
     - redis
-    - mysql
   redis:
     restart: always
     image: redis
@@ -51,37 +50,27 @@ services:
       nofile:
         soft: 98304
         hard: 98304
+    container_name: redis
     env_file:
       - ./.env.development
     ports:
       - "6379:6379"
-  mysql:
-    restart: always
-    image: mysql:5.7
-    ulimits:
-      nofile:
-        soft: 98304
-        hard: 98304
-    command: --max_allowed_packet=32505856 
-    env_file:
-      - ./.env.development
-    ports:
-      - "3306:3306"
   torus-metadata:
     restart: always
+    container_name: torus-metadata
     depends_on:
-      - mysql
       - ipfs
     build:
       context: .
       dockerfile: Dockerfile.dev
     env_file:
-      - ./.env.development
+      - ./.env
     ports:
       - "5051:5051/tcp"
     volumes:
       - .:/app
   ipfs:
+    container_name: ipfs
     image: ipfs/go-ipfs
     ports: 
       - "5001:5001/tcp"

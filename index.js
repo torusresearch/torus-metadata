@@ -8,9 +8,9 @@ const log = require("loglevel");
 const ResponseTime = require("response-time");
 const { register, collectDefaultMetrics } = require("prom-client");
 const client = require("prom-client");
-const heapdump = require("heapdump");
+// const heapdump = require("heapdump");
 
-heapdump.writeSnapshot(`${Date.now()}.heapsnapshot`);
+// heapdump.writeSnapshot(`${Date.now()}.heapsnapshot`);
 
 // enable prom-client to expose default application metrics
 collectDefaultMetrics({
