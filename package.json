@@ -4,7 +4,7 @@
   "description": "Torus metadata server",
   "main": "index.js",
   "scripts": {
-    "dev": "docker-compose -f docker-compose.dev.yml up --build",
+    "dev": "docker-compose -f docker-compose.dev.yml up --build -d",
     "serve": "node index.js",
     "start": "node index.js",
     "prod": "node index.js",
