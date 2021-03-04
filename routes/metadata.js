@@ -29,17 +29,15 @@ router.post("/get", validationMiddleware(["pub_key_X", "pub_key_Y"]), async (req
   try {
     const { namespace, pub_key_X: pubKeyX, pub_key_Y: pubKeyY } = req.body;
     const key = constructKey(pubKeyX, pubKeyY, namespace);
-    let value;
-    try {
-      value = await redis.get(key);
-    } catch (error) {
-      log.warn("redis get failed", error);
-    }
+    // try {
+    //   value = await redis.get(key);
+    // } catch (error) {
+    //   log.warn("redis get failed", error);
+    // }
 
-    if (!value) {
-      const data = await knexRead("data").where({ key }).orderBy("id", "desc").first();
-      value = (data && data.value) || "";
-    }
+    const data = await knexRead("data").where({ key }).orderBy("id", "desc").first();
+    const value = (data && data.value) || "";
+
     return res.json({ message: value });
   } catch (error) {
     log.error("get metadata failed", error);
@@ -139,11 +137,11 @@ router.post(
       });
       await knexWrite("data").insert(requiredData);
 
-      try {
-        await Promise.all(requiredData.map((x) => redis.setex(x.key, REDIS_TIMEOUT, x.value)));
-      } catch (error) {
-        log.warn("redis bulk set failed", error);
-      }
+      // try {
+      //   await Promise.all(requiredData.map((x) => redis.setex(x.key, REDIS_TIMEOUT, x.value)));
+      // } catch (error) {
+      //   log.warn("redis bulk set failed", error);
+      // }
 
       // const ipfsResultIterator = client.addAll(
       //   requiredData.map((x) => ({
