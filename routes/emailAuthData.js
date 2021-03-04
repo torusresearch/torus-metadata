@@ -1,0 +1,71 @@
+const log = require("loglevel");
+const express = require("express");
+
+const pify = require("pify");
+const { getError } = require("../utils");
+const { validationMiddleware } = require("../middleware");
+const { redisClient } = require("../database");
+
+const router = express.Router();
+const redis = pify(redisClient);
+const REDIS_TIMEOUT = 300; // 5m
+const REDIS_NAME_SPACE = "EMAIL_AUTH_DATA";
+module.exports = (io) => {
+  io.on("connection", (socket) => {
+    socket.on("check_auth_status", async (channelId) => {
+      if (channelId) {
+        const instancePubKey = channelId;
+        const key = `${REDIS_NAME_SPACE}_${instancePubKey}`;
+        // check if data for pubKey already in db,
+        // if data exists then emit data and so that client
+        // will close the connection.
+        const data = await redis.get(key);
+        if (data) {
+          socket.emit("success", JSON.parse(data.value.encAuthData));
+        } else {
+          socket.join(instancePubKey);
+        }
+        // create a socket room , specific to instancePubKey
+      } else {
+        socket.emit("error", "Empty channel id id not allowed");
+      }
+    });
+  });
+
+  router.get("/fetchAuthData", validationMiddleware(["instancePubKey"], false), async (req, res) => {
+    try {
+      const { instancePubKey } = req.query;
+      const key = `${REDIS_NAME_SPACE}_${instancePubKey}`;
+      const data = await redis.get(key);
+      const value = (data && JSON.parse(data)) || "";
+      return res.json({ success: true, data: value });
+    } catch (error) {
+      log.error("get auth data failed", error);
+      return res.status(500).json({ error: getError(error), success: false });
+    }
+  });
+
+  router.post("/updateAuthData", validationMiddleware([("encAuthData", "instancePubKey")]), async (req, res) => {
+    try {
+      const { encAuthData, instancePubKey } = req.body;
+      const key = `${REDIS_NAME_SPACE}_${instancePubKey}`;
+      const dataExist = await redis.get(key);
+      if (dataExist) {
+        return res.status(400).json({ success: false, message: "Link has been used already" });
+      }
+      const data = {
+        instancePubKey,
+        encAuthData,
+      };
+      await redis.setex(key, REDIS_TIMEOUT, JSON.stringify(data));
+
+      io.to(instancePubKey).emit("success", JSON.parse(encAuthData));
+
+      return res.json({ message: "Email auth data added successfully" });
+    } catch (error) {
+      log.error("set metadata failed", error);
+      return res.status(500).json({ error: getError(error), success: false });
+    }
+  });
+  return router;
+};

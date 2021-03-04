@@ -13,6 +13,7 @@ services:
     ports:
       - "6379:6379"
   mysql:
+    # platform: linux/x86_64
     restart: always
     image: mysql:5.7
     command: --max_allowed_packet=32505856
@@ -35,4 +36,3 @@ services:
       - "5051:5051/tcp"
     volumes:
       - .:/app
-
