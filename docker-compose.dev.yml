@@ -34,7 +34,7 @@ services:
       nofile:
         soft: 98304
         hard: 98304
-    command: --max_allowed_packet=32505856 
+    command: --max_allowed_packet=524288000
     env_file:
       - ./.env.development
     ports:
