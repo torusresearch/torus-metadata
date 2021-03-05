@@ -49,7 +49,6 @@ module.exports = {
       reapIntervalMillis: 1000,
       createRetryIntervalMillis: 100,
       propagateCreateError: false,
-      afterCreate,
     },
     migrations: {
       tableName: "knex_migrations",
