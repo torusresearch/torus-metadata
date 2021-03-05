@@ -60,6 +60,7 @@ services:
     container_name: torus-metadata
     depends_on:
       - ipfs
+      - redis
     build:
       context: .
       dockerfile: Dockerfile.dev
