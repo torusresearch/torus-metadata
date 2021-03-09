@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "docker-compose -f docker-compose.dev.yml up --build",
     "down": "docker-compose -f docker-compose.dev.yml down",
-    "serve": "nodemon index.js",
+    "serve": "npx nodemon index.js",
     "start": "node index.js",
     "prod": "node index.js",
     "migrate": "npx knex migrate:unlock --knexfile ./database/knexfile.js && npx knex migrate:latest --knexfile ./database/knexfile.js",
