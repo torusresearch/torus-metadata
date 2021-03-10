@@ -17,6 +17,8 @@ jobs:
   deploy:
     name: Deploy
     runs-on: ubuntu-latest
+    environment:
+      name: ECR_PUSH
 
     steps:
       - name: Checkout
