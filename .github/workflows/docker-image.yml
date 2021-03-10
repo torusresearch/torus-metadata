@@ -11,7 +11,7 @@ on:
   push:
     branches: [feat/actionsTest]
 
-name: actionsTests `torus-metadata` CI on ECR
+name: push torus-metadata-js image to ECR
 
 jobs:
   deploy:
