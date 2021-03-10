@@ -9,7 +9,7 @@
 
 on:
   push:
-    branches: [feat/actionsTests]
+    branches: [feat/actionsTest]
 
 name: actionsTests `torus-metadata` CI on ECR
 
