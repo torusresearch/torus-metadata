@@ -99,16 +99,17 @@ router.post(
         log.warn("redis bulk set failed", error);
       }
 
-      const ipfsResultIterator = ipfsClient.addAll(
-        requiredData.map((x) => ({
-          path: x.key,
-          content: x.value,
-        }))
-      );
-      const ipfsResult = [];
-      for (const entry of ipfsResultIterator) {
-        ipfsResult.push(entry);
-      }
+      // const ipfsResultIterator = ipfsClient.addAll(
+      //   requiredData.map((x) => ({
+      //     path: x.key,
+      //     content: x.value,
+      //   }))
+      // );
+      // const ipfsResult = [];
+      // for (const entry of ipfsResultIterator) {
+      //   ipfsResult.push(entry);
+      // }
+      requiredData.map((x) => ipfsClient.add({ path: x.key, content: x.data }));
 
       return res.json({ message: "success" });
     } catch (error) {
@@ -145,16 +146,20 @@ router.post(
         log.warn("redis bulk set failed", error);
       }
 
-      const ipfsResultIterator = ipfsClient.addAll(
-        requiredData.map((x) => ({
-          path: x.key,
-          content: x.value,
-        }))
-      );
-      const ipfsResult = [];
-      for (const entry of ipfsResultIterator) {
-        ipfsResult.push(entry);
-      }
+      // const ipfsResultIterator = ipfsClient.addAll(
+      //   requiredData.map((x) => ({
+      //     path: x.key,
+      //     content: x.value,
+      //   }))
+      // );
+
+      // const ipfsResult = [];
+      // for (const entry of ipfsResultIterator) {
+      //   ipfsResult.push(entry);
+      // }
+
+      requiredData.map((x) => ipfsClient.add({ path: x.key, content: x.data }));
+
       return res.json({ message: "success" });
     } catch (error) {
       log.error("set stream metadata failed", error);
