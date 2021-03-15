@@ -9,7 +9,7 @@
 
 on:
   push:
-    branches: [feat/actionsTest]
+    branches: [master]
 
 name: push torus-metadata-js image to ECR
 
