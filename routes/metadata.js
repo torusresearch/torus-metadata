@@ -64,8 +64,10 @@ router.post("/set", validationMiddleware([("pub_key_X", "pub_key_Y", "signature"
       log.warn("redis set failed", error);
     }
 
-    const ipfsResult = await ipfsClient.add({ path: key, content: data });
-    return res.json({ message: ipfsResult.cid.toBaseEncodedString() });
+    // Async push
+    ipfsClient.add({ path: key, content: data });
+
+    return res.json({ message: "success" });
   } catch (error) {
     log.error("set metadata failed", error);
     return res.status(500).json({ error: getError(error), success: false });
@@ -104,10 +106,11 @@ router.post(
         }))
       );
       const ipfsResult = [];
-      for await (const entry of ipfsResultIterator) {
+      for (const entry of ipfsResultIterator) {
         ipfsResult.push(entry);
       }
-      return res.json({ message: ipfsResult.map((x) => x.cid.toBaseEncodedString()) });
+
+      return res.json({ message: "success" });
     } catch (error) {
       log.error("bulk set metadata failed", error);
       return res.status(500).json({ error: getError(error), success: false });
@@ -149,10 +152,10 @@ router.post(
         }))
       );
       const ipfsResult = [];
-      for await (const entry of ipfsResultIterator) {
+      for (const entry of ipfsResultIterator) {
         ipfsResult.push(entry);
       }
-      return res.json({ message: ipfsResult.map((x) => x.cid.toBaseEncodedString()) });
+      return res.json({ message: "success" });
     } catch (error) {
       log.error("set stream metadata failed", error);
       return res.status(500).json({ error: getError(error), success: false });
