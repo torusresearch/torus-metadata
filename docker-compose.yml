@@ -12,7 +12,3 @@ services:
       - ./.env
     ports:
       - "5051:5051/tcp"
-  ipfs:
-    image: ipfs/go-ipfs
-    ports: 
-      - "5001:5001/tcp"
