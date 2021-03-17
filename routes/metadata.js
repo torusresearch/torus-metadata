@@ -73,8 +73,8 @@ router.post(
         log.warn("redis set failed", error);
       }
 
-      const ipfsResult = await ipfsClient.add({ path: key, content: data, options: { onlyHash: true } });
-      return res.json({ message: ipfsResult.cid.toBaseEncodedString() });
+      const ipfsResult = await ipfsClient.getHashAndWriteAsync([{ key, value: data }]);
+      return res.json({ message: ipfsResult.map((x) => x.cid.toBaseEncodedString()) });
     } catch (error) {
       log.error("set metadata failed", error);
       return res.status(500).json({ error: getError(error), success: false });
@@ -116,17 +116,7 @@ router.post(
         log.warn("redis bulk set failed", error);
       }
 
-      const ipfsResultIterator = ipfsClient.addAll(
-        requiredData.map((x) => ({
-          path: x.key,
-          content: x.value,
-          options: { onlyHash: true },
-        }))
-      );
-      const ipfsResult = [];
-      for await (const entry of ipfsResultIterator) {
-        ipfsResult.push(entry);
-      }
+      const ipfsResult = await ipfsClient.getHashAndWriteAsync(requiredData);
       return res.json({ message: ipfsResult.map((x) => x.cid.toBaseEncodedString()) });
     } catch (error) {
       log.error("bulk set metadata failed", error);
@@ -171,17 +161,7 @@ router.post(
         log.warn("redis bulk set failed", error);
       }
 
-      const ipfsResultIterator = ipfsClient.addAll(
-        requiredData.map((x) => ({
-          path: x.key,
-          content: x.value,
-          options: { onlyHash: true },
-        }))
-      );
-      const ipfsResult = [];
-      for await (const entry of ipfsResultIterator) {
-        ipfsResult.push(entry);
-      }
+      const ipfsResult = await ipfsClient.getHashAndWriteAsync(requiredData);
       return res.json({ message: ipfsResult.map((x) => x.cid.toBaseEncodedString()) });
     } catch (error) {
       log.error("set stream metadata failed", error);
