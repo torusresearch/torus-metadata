@@ -17,7 +17,7 @@ exports.validationMiddleware = (items, isBody = true) => (req, res, next) => {
     }
     return next();
   } catch (error) {
-    console.trace("validationMiddleware internal error", error);
+    log.error("validationMiddleware internal error", error);
     return res.status(500).json({ error: getError(error), success: false });
   }
 };
@@ -38,7 +38,7 @@ exports.validationLoopMiddleware = (items, key, isBody = true) => (req, res, nex
     }
     return next();
   } catch (error) {
-    console.trace("validationLoopMiddleware internal error", error);
+    log.error("validationLoopMiddleware internal error", error);
     return res.status(500).json({ error: getError(error), success: false });
   }
 };
@@ -138,7 +138,7 @@ exports.validateNamespace = (req, res, next) => {
     req.body.tableName = getDBTableName(namespace); // function will validate namespace too
     return next();
   } catch (error) {
-    console.error(error);
+    log.error(error);
     return res.status(500).json({ error: getError(error), success: false });
   }
 };
@@ -151,7 +151,7 @@ exports.validateNamespaceLoop = (key, isBody = true) => (req, res, next) => {
       const { namespace } = param;
       param.tableName = getDBTableName(namespace);
     } catch (error) {
-      console.error(index, error);
+      log.error(index, error);
       return res.status(500).json({ error: getError(error), success: false });
     }
   }
@@ -171,7 +171,7 @@ exports.validateLockData = (req, res, next) => {
     }
     return next();
   } catch (error) {
-    console.error(error);
+    log.error(error);
     return res.status(500).json({ error: getError(error), status: 0 });
   }
 };
@@ -183,7 +183,7 @@ exports.serializeStreamBody = (req, res, next) => {
     req.body = { shares };
     return next();
   } catch (error) {
-    console.trace("serializeStreamBody internal error", error);
+    log.error("serializeStreamBody internal error", error);
     return res.status(500).json({ error: getError(error), status: 0 });
   }
 };
