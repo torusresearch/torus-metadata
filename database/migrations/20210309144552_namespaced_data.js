@@ -24,5 +24,5 @@ exports.up = function (knex) {
 };
 
 exports.down = function (knex) {
-  return knex.schema.dropTable("default").dropTable("tkey").dropTable("webauthn");
+  return knex.schema.dropTable("test").dropTable("tkey").dropTable("webauthn");
 };
