@@ -14,6 +14,8 @@ const {
   validateMetadataLoopInput,
   validateLoopSignature,
   serializeStreamBody,
+  validateNamespace,
+  validateNamespaceLoop,
 } = require("../middleware");
 const { knexRead, knexWrite, redisClient, ipfsClient } = require("../database");
 const { validateMetadataInput, validateSignature } = require("../middleware");
@@ -22,9 +24,9 @@ const router = express.Router();
 const redis = pify(redisClient);
 // 10 sec
 
-router.post("/get", validationMiddleware(["pub_key_X", "pub_key_Y"]), async (req, res) => {
+router.post("/get", validationMiddleware(["pub_key_X", "pub_key_Y"]), validateNamespace, async (req, res) => {
   try {
-    const { namespace, pub_key_X: pubKeyX, pub_key_Y: pubKeyY } = req.body;
+    const { namespace, pub_key_X: pubKeyX, pub_key_Y: pubKeyY, tableName } = req.body;
     const key = constructKey(pubKeyX, pubKeyY, namespace);
     let value;
     try {
@@ -34,7 +36,7 @@ router.post("/get", validationMiddleware(["pub_key_X", "pub_key_Y"]), async (req
     }
 
     if (!value) {
-      const data = await knexRead("data").where({ key }).orderBy("id", "desc").first();
+      const data = await knexRead(tableName).where({ key }).orderBy("id", "desc").first();
       value = (data && data.value) || "";
     }
     return res.json({ message: value });
@@ -44,41 +46,48 @@ router.post("/get", validationMiddleware(["pub_key_X", "pub_key_Y"]), async (req
   }
 });
 
-router.post("/set", validationMiddleware([("pub_key_X", "pub_key_Y", "signature")]), validateMetadataInput, validateSignature, async (req, res) => {
-  try {
-    const {
-      namespace,
-      pub_key_X: pubKeyX,
-      pub_key_Y: pubKeyY,
-      set_data: { data },
-    } = req.body;
-    const key = constructKey(pubKeyX, pubKeyY, namespace);
-    await knexWrite("data").insert({
-      key,
-      value: data,
-    });
-
+router.post(
+  "/set",
+  validationMiddleware([("pub_key_X", "pub_key_Y", "signature")]),
+  validateMetadataInput,
+  validateSignature,
+  validateNamespace,
+  async (req, res) => {
     try {
-      await redis.setex(key, REDIS_TIMEOUT, data);
+      const {
+        namespace,
+        pub_key_X: pubKeyX,
+        pub_key_Y: pubKeyY,
+        set_data: { data },
+        tableName,
+      } = req.body;
+      const key = constructKey(pubKeyX, pubKeyY, namespace);
+      await knexWrite(tableName).insert({
+        key,
+        value: data,
+      });
+
+      try {
+        await redis.setex(key, REDIS_TIMEOUT, data);
+      } catch (error) {
+        log.warn("redis set failed", error);
+      }
+
+      const ipfsResult = await ipfsClient.getHashAndWriteAsync([{ key, value: data }]);
+      return res.json({ message: ipfsResult.map((x) => x.cid.toBaseEncodedString()) });
     } catch (error) {
-      log.warn("redis set failed", error);
+      log.error("set metadata failed", error);
+      return res.status(500).json({ error: getError(error), success: false });
     }
-
-    // Async push
-    ipfsClient.add({ path: key, content: data });
-
-    return res.json({ message: "success" });
-  } catch (error) {
-    log.error("set metadata failed", error);
-    return res.status(500).json({ error: getError(error), success: false });
   }
-});
+);
 
 router.post(
   "/bulk_set",
   validationLoopMiddleware([("pub_key_X", "pub_key_Y", "signature")], "shares"),
   validateMetadataLoopInput("shares"),
   validateLoopSignature("shares"),
+  validateNamespaceLoop("shares"),
   async (req, res) => {
     try {
       const { shares } = req.body;
@@ -88,10 +97,18 @@ router.post(
           pub_key_X: pubKeyX,
           pub_key_Y: pubKeyY,
           set_data: { data },
+          tableName,
         } = x;
-        return { key: constructKey(pubKeyX, pubKeyY, namespace), value: data };
+        return { key: constructKey(pubKeyX, pubKeyY, namespace), value: data, tableName };
       });
-      await knexWrite("data").insert(requiredData);
+      // await knexWrite(tableName).insert(requiredData);
+      await Promise.all(
+        requiredData.map((x) => {
+          const tempTableName = x.tableName;
+          delete x.tableName;
+          return knexWrite(tempTableName).insert(x);
+        })
+      );
 
       try {
         await Promise.all(requiredData.map((x) => redis.setex(x.key, REDIS_TIMEOUT, x.value)));
@@ -99,9 +116,8 @@ router.post(
         log.warn("redis bulk set failed", error);
       }
 
-      requiredData.map((x) => ipfsClient.add({ path: x.key, content: x.data }));
-
-      return res.json({ message: "success" });
+      const ipfsResult = await ipfsClient.getHashAndWriteAsync(requiredData);
+      return res.json({ message: ipfsResult.map((x) => x.cid.toBaseEncodedString()) });
     } catch (error) {
       log.error("bulk set metadata failed", error);
       return res.status(500).json({ error: getError(error), success: false });
@@ -116,6 +132,7 @@ router.post(
   validationLoopMiddleware([("pub_key_X", "pub_key_Y", "signature")], "shares"),
   validateMetadataLoopInput("shares"),
   validateLoopSignature("shares"),
+  validateNamespaceLoop("shares"),
   async (req, res) => {
     try {
       const { shares } = req.body;
@@ -125,10 +142,18 @@ router.post(
           pub_key_X: pubKeyX,
           pub_key_Y: pubKeyY,
           set_data: { data },
+          tableName,
         } = x;
-        return { key: constructKey(pubKeyX, pubKeyY, namespace), value: data };
+        return { key: constructKey(pubKeyX, pubKeyY, namespace), value: data, tableName };
       });
-      await knexWrite("data").insert(requiredData);
+      // await knexWrite(tableName).insert(requiredData);
+      await Promise.all(
+        requiredData.map((x) => {
+          const tempTableName = x.tableName;
+          delete x.tableName;
+          return knexWrite(tempTableName).insert(x);
+        })
+      );
 
       try {
         await Promise.all(requiredData.map((x) => redis.setex(x.key, REDIS_TIMEOUT, x.value)));
@@ -136,9 +161,8 @@ router.post(
         log.warn("redis bulk set failed", error);
       }
 
-      requiredData.map((x) => ipfsClient.add({ path: x.key, content: x.data }));
-
-      return res.json({ message: "success" });
+      const ipfsResult = await ipfsClient.getHashAndWriteAsync(requiredData);
+      return res.json({ message: ipfsResult.map((x) => x.cid.toBaseEncodedString()) });
     } catch (error) {
       log.error("set stream metadata failed", error);
       return res.status(500).json({ error: getError(error), success: false });

@@ -9,4 +9,29 @@ const ipfsClient = IpfsHttpClient({
   },
 });
 
+ipfsClient.getHashAndWriteAsync = async function (data) {
+  // Get hash
+  const ipfsResultIterator = ipfsClient.addAll(
+    data.map((x) => ({
+      path: x.key,
+      content: x.value,
+      options: { onlyHash: true },
+    }))
+  );
+  const ipfsResult = [];
+  for await (const entry of ipfsResultIterator) {
+    ipfsResult.push(entry);
+  }
+
+  // Write async
+  ipfsClient.addAll(
+    data.map((x) => ({
+      path: x.key,
+      content: x.value,
+    }))
+  );
+
+  return ipfsResult;
+};
+
 module.exports = ipfsClient;

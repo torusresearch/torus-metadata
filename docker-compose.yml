@@ -3,8 +3,6 @@ version: '3'
 services:
   torus-metadata:
     restart: always
-    depends_on:
-      - ipfs
     build:
       context: .
       dockerfile: Dockerfile

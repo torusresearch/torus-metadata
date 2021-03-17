@@ -4,6 +4,7 @@ const { keccak256 } = require("js-sha3");
 const stringify = require("json-stable-stringify");
 
 const { getError } = require("../utils");
+const { getDBTableName } = require("../utils/namespace");
 const { validateInput } = require("../validations");
 
 const elliptic = new EC("secp256k1");
@@ -16,7 +17,7 @@ exports.validationMiddleware = (items, isBody = true) => (req, res, next) => {
     }
     return next();
   } catch (error) {
-    console.trace("validationMiddleware internal error", error);
+    log.error("validationMiddleware internal error", error);
     return res.status(500).json({ error: getError(error), success: false });
   }
 };
@@ -37,7 +38,7 @@ exports.validationLoopMiddleware = (items, key, isBody = true) => (req, res, nex
     }
     return next();
   } catch (error) {
-    console.trace("validationLoopMiddleware internal error", error);
+    log.error("validationLoopMiddleware internal error", error);
     return res.status(500).json({ error: getError(error), success: false });
   }
 };
@@ -131,6 +132,32 @@ exports.validateLoopSignature = (key, isBody = true) => (req, res, next) => {
   return next();
 };
 
+exports.validateNamespace = (req, res, next) => {
+  try {
+    const { namespace } = req.body;
+    req.body.tableName = getDBTableName(namespace); // function will validate namespace too
+    return next();
+  } catch (error) {
+    log.error(error);
+    return res.status(500).json({ error: getError(error), success: false });
+  }
+};
+
+exports.validateNamespaceLoop = (key, isBody = true) => (req, res, next) => {
+  const paramsObject = isBody ? req.body : req.query;
+  const mainParamToTest = paramsObject[key];
+  for (const [index, param] of mainParamToTest.entries()) {
+    try {
+      const { namespace } = param;
+      param.tableName = getDBTableName(namespace);
+    } catch (error) {
+      log.error(index, error);
+      return res.status(500).json({ error: getError(error), success: false });
+    }
+  }
+  return next();
+};
+
 exports.validateLockData = (req, res, next) => {
   try {
     const { key: pubKey, signature, data } = req.body;
@@ -144,7 +171,7 @@ exports.validateLockData = (req, res, next) => {
     }
     return next();
   } catch (error) {
-    console.error(error);
+    log.error(error);
     return res.status(500).json({ error: getError(error), status: 0 });
   }
 };
@@ -156,7 +183,7 @@ exports.serializeStreamBody = (req, res, next) => {
     req.body = { shares };
     return next();
   } catch (error) {
-    console.trace("serializeStreamBody internal error", error);
+    log.error("serializeStreamBody internal error", error);
     return res.status(500).json({ error: getError(error), status: 0 });
   }
 };
