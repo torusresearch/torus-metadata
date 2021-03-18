@@ -17,7 +17,7 @@ const {
   validateNamespace,
   validateNamespaceLoop,
 } = require("../middleware");
-const { knexRead, knexWrite, redisClient, ipfsClient } = require("../database");
+const { knexRead, knexWrite, redisClient, getHashAndWriteAsync } = require("../database");
 const { validateMetadataInput, validateSignature } = require("../middleware");
 
 const router = express.Router();
@@ -73,8 +73,8 @@ router.post(
         log.warn("redis set failed", error);
       }
 
-      const ipfsResult = await ipfsClient.getHashAndWriteAsync([{ key, value: data }]);
-      return res.json({ message: ipfsResult.map((x) => x.cid.toBaseEncodedString()) });
+      const ipfsResult = await getHashAndWriteAsync([{ key, value: data }]);
+      return res.json({ message: ipfsResult });
     } catch (error) {
       log.error("set metadata failed", error);
       return res.status(500).json({ error: getError(error), success: false });
@@ -116,8 +116,8 @@ router.post(
         log.warn("redis bulk set failed", error);
       }
 
-      const ipfsResult = await ipfsClient.getHashAndWriteAsync(requiredData);
-      return res.json({ message: ipfsResult.map((x) => x.cid.toBaseEncodedString()) });
+      const ipfsResult = await getHashAndWriteAsync(requiredData);
+      return res.json({ message: ipfsResult });
     } catch (error) {
       log.error("bulk set metadata failed", error);
       return res.status(500).json({ error: getError(error), success: false });
@@ -161,8 +161,8 @@ router.post(
         log.warn("redis bulk set failed", error);
       }
 
-      const ipfsResult = await ipfsClient.getHashAndWriteAsync(requiredData);
-      return res.json({ message: ipfsResult.map((x) => x.cid.toBaseEncodedString()) });
+      const ipfsResult = await getHashAndWriteAsync(requiredData);
+      return res.json({ message: ipfsResult });
     } catch (error) {
       log.error("set stream metadata failed", error);
       return res.status(500).json({ error: getError(error), success: false });
