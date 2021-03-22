@@ -32,19 +32,6 @@ module.exports = (io) => {
     });
   });
 
-  router.get("/fetchAuthData", validationMiddleware(["instancePubKey"], false), async (req, res) => {
-    try {
-      const { instancePubKey } = req.query;
-      const key = `${REDIS_NAME_SPACE}_${instancePubKey}`;
-      const data = await redis.get(key);
-      const value = (data && JSON.parse(data)) || "";
-      return res.json({ success: true, data: value });
-    } catch (error) {
-      log.error("get auth data failed", error);
-      return res.status(500).json({ error: getError(error), success: false });
-    }
-  });
-
   router.post("/updateAuthData", validationMiddleware([("encAuthData", "instancePubKey")]), async (req, res) => {
     try {
       const { encAuthData, instancePubKey } = req.body;
