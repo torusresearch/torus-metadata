@@ -22,11 +22,7 @@ io.on("connection", () => {
 // Setup environment
 require("dotenv").config();
 
-if (process.env.NODE_ENV === "development") {
-  log.enableAll();
-} else {
-  log.setDefaultLevel("info");
-}
+log.enableAll();
 
 // setup middleware
 const corsOptions = {
