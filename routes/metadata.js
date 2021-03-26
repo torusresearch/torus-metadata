@@ -36,7 +36,7 @@ router.post("/get", validationMiddleware(["pub_key_X", "pub_key_Y"]), validateNa
     }
 
     if (!value) {
-      const data = await knexRead(tableName).where({ key }).orderBy("created_at", "desc").first();
+      const data = await knexRead(tableName).where({ key }).orderBy("created_at", "desc").orderBy("id", "desc").first();
       value = (data && data.value) || "";
     }
     return res.json({ message: value });
