@@ -36,8 +36,11 @@ router.post("/get", validationMiddleware(["pub_key_X", "pub_key_Y"]), validateNa
     }
 
     if (!value) {
-      const data = await knexRead(tableName).where({ key }).orderBy("id", "desc").first();
-      value = (data && data.value) || "";
+      const [data1, data2] = await Promise.all([
+        knexRead(tableName).where({ key }).orderBy("created_at", "desc").first(),
+        knexRead("data").where({ key }).orderBy("created_at", "desc").first(),
+      ]);
+      value = (data1 && data1.value) || (data2 && data2.value) || "";
     }
     return res.json({ message: value });
   } catch (error) {
