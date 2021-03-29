@@ -3,18 +3,22 @@ const bodyParser = require("body-parser");
 const helmet = require("helmet");
 const cors = require("cors");
 const morgan = require("morgan");
+const socketRedis = require("socket.io-redis");
 const log = require("loglevel");
 
 // setup app
 const app = express();
 const http = require("http").Server(app);
 const io = require("socket.io")(http, {
+  transports: ["websocket"],
   cors: {
     credentials: true,
     origin: true,
     methods: ["GET", "POST"],
   },
 });
+
+io.adapter(socketRedis({ host: process.env.REDIS_HOSTNAME, port: process.env.REDIS_PORT }));
 
 io.on("connection", () => {
   log.debug("connected");
