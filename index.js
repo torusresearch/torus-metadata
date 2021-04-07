@@ -9,6 +9,11 @@ const log = require("loglevel");
 // setup app
 const app = express();
 const http = require("http").Server(app);
+
+// for elb, https://shuheikagawa.com/blog/2019/04/25/keep-alive-timeout/
+http.keepAliveTimeout = 61 * 1000;
+http.headersTimeout = 65 * 1000;
+
 const io = require("socket.io")(http, {
   transports: ["websocket"],
   cors: {
