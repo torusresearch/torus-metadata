@@ -5,6 +5,7 @@ exports.up = function (knex) {
     table.timestamp("updated_at").notNullable().defaultTo(knex.fn.now());
     table.string("key", 255).notNullable();
     table.text("value", "mediumtext").notNullable().defaultTo("");
+    table.index(["key"], "idx_key");
   });
 };
 
