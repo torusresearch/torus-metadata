@@ -6,6 +6,7 @@ exports.up = function (knex) {
       table.timestamp("updated_at").notNullable().defaultTo(knex.fn.now());
       table.string("key", 255).notNullable();
       table.text("value", "mediumtext").notNullable().defaultTo("");
+      table.index(["key"], "idx_key");
     })
     .createTable("oauth_userinfo", (table) => {
       table.increments("id");
@@ -13,6 +14,7 @@ exports.up = function (knex) {
       table.timestamp("updated_at").notNullable().defaultTo(knex.fn.now());
       table.string("key", 255).notNullable();
       table.text("value", "mediumtext").notNullable().defaultTo("");
+      table.index(["key"], "idx_key");
     })
     .createTable("webauthn_torus_share", (table) => {
       table.increments("id");
@@ -20,6 +22,7 @@ exports.up = function (knex) {
       table.timestamp("updated_at").notNullable().defaultTo(knex.fn.now());
       table.string("key", 255).notNullable();
       table.text("value", "mediumtext").notNullable().defaultTo("");
+      table.index(["key"], "idx_key");
     })
     .createTable("webauthn_device_share", (table) => {
       table.increments("id");
@@ -27,6 +30,7 @@ exports.up = function (knex) {
       table.timestamp("updated_at").notNullable().defaultTo(knex.fn.now());
       table.string("key", 255).notNullable();
       table.text("value", "mediumtext").notNullable().defaultTo("");
+      table.index(["key"], "idx_key");
     });
 };
 
