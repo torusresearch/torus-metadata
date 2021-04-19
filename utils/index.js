@@ -16,4 +16,4 @@ exports.constructKey = (pubKeyX, pubKeyY, namespace) => {
 exports.randomID = () => `${Math.random().toString(36).substr(2, 9)}`;
 
 exports.REDIS_TIMEOUT = 10; // seconds
-exports.REDIS_LOCK_TIMEOUT = 30;
+exports.REDIS_LOCK_TIMEOUT = 60;
