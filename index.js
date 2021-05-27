@@ -5,6 +5,8 @@ const cors = require("cors");
 const morgan = require("morgan");
 const socketRedis = require("socket.io-redis");
 const log = require("loglevel");
+const Sentry = require("@sentry/node");
+const Tracing = require("@sentry/tracing");
 
 // setup app
 const app = express();
@@ -30,6 +32,24 @@ io.on("connection", () => {
 });
 // Setup environment
 require("dotenv").config();
+
+// setup Sentry
+const isSentryConfigured = process.env.SENTRY_DSN && process.env.SENTRY_DSN.length > 0;
+if (isSentryConfigured) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.NODE_ENV,
+    integrations: [new Sentry.Integrations.Http({ tracing: true }), new Tracing.Integrations.Express({ app })],
+    sampleRate: 0.2,
+    tracesSampleRate: 0.2,
+  });
+  app.use(
+    Sentry.Handlers.requestHandler({
+      request: ["public_address", "data", "headers", "method", "query_string", "url"],
+    })
+  );
+  app.use(Sentry.Handlers.tracingHandler());
+}
 
 log.enableAll();
 

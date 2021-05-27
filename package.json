@@ -17,6 +17,9 @@
   "author": "Chaitanya Potti",
   "license": "ISC",
   "dependencies": {
+    "@sentry/node": "^6.4.1",
+    "@sentry/tracing": "^6.4.1",
+    "@toruslabs/loglevel-sentry": "^2.5.0",
     "body-parser": "^1.19.0",
     "cids": "^1.1.6",
     "cors": "^2.8.5",
