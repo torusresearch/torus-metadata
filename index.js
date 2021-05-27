@@ -38,7 +38,7 @@ const corsOptions = {
   // origin: ["https://localhost:3000", /\.tor\.us$/],
   origin: true,
   credentials: false,
-  allowedHeaders: ["Content-Type", "x-api-key", "x-embed-host"],
+  allowedHeaders: ["Content-Type", "x-api-key", "x-embed-host", "sentry-trace"],
   methods: "GET,POST",
   maxAge: 86400,
 };
