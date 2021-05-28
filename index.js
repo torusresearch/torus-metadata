@@ -24,6 +24,7 @@ const io = require("socket.io")(http, {
     methods: ["GET", "POST"],
   },
 });
+const redact = require("./utils/redactSentry");
 
 io.adapter(socketRedis({ host: process.env.REDIS_HOSTNAME, port: process.env.REDIS_PORT }));
 
@@ -42,6 +43,9 @@ if (isSentryConfigured) {
     integrations: [new Sentry.Integrations.Http({ tracing: true }), new Tracing.Integrations.Express({ app })],
     sampleRate: 0.2,
     tracesSampleRate: 0.2,
+    beforeSend(event) {
+      return redact(event);
+    },
   });
   app.use(
     Sentry.Handlers.requestHandler({
