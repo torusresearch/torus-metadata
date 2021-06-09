@@ -84,6 +84,6 @@ app.use("/", routes);
 const port = process.env.PORT || 5051;
 server.listen(port, () => log.info(`Server running on port: ${port}`));
 
-// for elb, https://shuheikagawa.com/blog/2019/04/25/keep-alive-timeout/
+// Let AWS ALB drop connections (ref https://shuheikagawa.com/blog/2019/04/25/keep-alive-timeout)
 server.keepAliveTimeout = awsIdleTimeout + 5 * 1000;
 server.headersTimeout = awsIdleTimeout + 10 * 1000;
