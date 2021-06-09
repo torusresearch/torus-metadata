@@ -10,19 +10,20 @@ const Tracing = require("@sentry/tracing");
 
 // setup app
 const app = express();
-const http = require("http").Server(app);
+const server = require("http").createServer(app);
 
-// for elb, https://shuheikagawa.com/blog/2019/04/25/keep-alive-timeout/
-http.keepAliveTimeout = 61 * 1000;
-http.headersTimeout = 65 * 1000;
-
-const io = require("socket.io")(http, {
+const awsIdleTimeout = 60 * 1000; // AWS ALB idle timeout
+const io = require("socket.io")(server, {
   transports: ["websocket"],
   cors: {
     credentials: true,
     origin: true,
     methods: ["GET", "POST"],
   },
+  // Let AWS ALB drop connections
+  connectTimeout: awsIdleTimeout + 5 * 1000,
+  pingTimeout: awsIdleTimeout + 5 * 1000,
+  upgradeTimeout: awsIdleTimeout + 5 * 1000,
 });
 const redact = require("./utils/redactSentry");
 
@@ -81,4 +82,8 @@ const routes = require("./routes")(io);
 app.use("/", routes);
 
 const port = process.env.PORT || 5051;
-http.listen(port, () => log.info(`Server running on port: ${port}`));
+server.listen(port, () => log.info(`Server running on port: ${port}`));
+
+// for elb, https://shuheikagawa.com/blog/2019/04/25/keep-alive-timeout/
+server.keepAliveTimeout = awsIdleTimeout + 5 * 1000;
+server.headersTimeout = awsIdleTimeout + 10 * 1000;
