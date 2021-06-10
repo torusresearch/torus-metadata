@@ -1,5 +1,4 @@
 const express = require("express");
-const bodyParser = require("body-parser");
 const helmet = require("helmet");
 const cors = require("cors");
 const morgan = require("morgan");
@@ -73,8 +72,8 @@ app.disable("x-powered-by");
 if (process.env.NODE_ENV === "development") app.use(morgan("tiny")); // HTTP logging
 app.use(cors(corsOptions)); // middleware to enables cors
 app.use(helmet()); // middleware which adds http headers
-app.use(bodyParser.urlencoded({ extended: false, limit: "10mb" })); // middleware which parses body
-app.use(bodyParser.json({ limit: "10mb" })); // converts body to json
+app.use(express.urlencoded({ extended: false, limit: "10mb" })); // middleware which parses body
+app.use(express.json({ limit: "10mb" })); // converts body to json
 
 // bring all routes here
 const routes = require("./routes")(io);
