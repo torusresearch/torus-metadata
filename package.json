@@ -18,12 +18,11 @@
   "author": "Chaitanya Potti",
   "license": "ISC",
   "dependencies": {
-    "@babel/runtime": "^7.14.0",
-    "@sentry/node": "^6.4.1",
-    "@sentry/tracing": "^6.4.1",
-    "@toruslabs/loglevel-sentry": "^2.5.0",
-    "body-parser": "^1.19.0",
-    "cids": "^1.1.6",
+    "@babel/runtime": "^7.14.6",
+    "@sentry/node": "^6.7.2",
+    "@sentry/tracing": "^6.7.2",
+    "@toruslabs/loglevel-sentry": "^2.7.0",
+    "cids": "^1.1.7",
     "cors": "^2.8.5",
     "dotenv": "^10.0.0",
     "elliptic": "^6.5.4",
@@ -44,13 +43,13 @@
     "socket.io-redis": "^6.1.1"
   },
   "devDependencies": {
-    "eslint": "^7.27.0",
+    "eslint": "^7.29.0",
     "eslint-config-airbnb-base": "^14.2.1",
     "eslint-config-prettier": "^8.3.0",
     "eslint-config-problems": "^5.0.0",
     "eslint-config-standard": "^16.0.3",
     "eslint-plugin-chai-expect": "^2.2.0",
-    "eslint-plugin-import": "^2.23.3",
+    "eslint-plugin-import": "^2.23.4",
     "eslint-plugin-mocha": "^9.0.0",
     "eslint-plugin-node": "^11.1.0",
     "eslint-plugin-only-error": "^1.0.2",
@@ -60,7 +59,7 @@
     "husky": "^6.0.0",
     "lint-staged": "^11.0.0",
     "nodemon": "^2.0.7",
-    "prettier": "^2.3.0"
+    "prettier": "^2.3.1"
   },
   "lint-staged": {
     "*.{js,css,json,md}": [

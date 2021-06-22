@@ -49,6 +49,13 @@ jobs:
           echo "::set-output name=image::$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$GITHUB_SHA
           echo "::set-output name=image::$ECR_REGISTRY/$ECR_REPOSITORY:$GITHUB_SHA"
+
+      - name: Deploy
+        run: |
+          aws ecs update-service --cluster $ECS_CLUSTER_METADATA --service $ECS_SERVICE_METADATA --force-new-deployment
+        env:
+          ECS_CLUSTER_METADATA: torus-microservices
+          ECS_SERVICE_METADATA: metadata-service
   deployToSing:
     name: Deploy
     runs-on: ubuntu-latest
@@ -84,3 +91,9 @@ jobs:
           echo "::set-output name=image::$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$GITHUB_SHA
           echo "::set-output name=image::$ECR_REGISTRY/$ECR_REPOSITORY:$GITHUB_SHA"
+      - name: Deploy
+        run: |
+          aws ecs update-service --cluster $ECS_CLUSTER_METADATA --service $ECS_SERVICE_METADATA --force-new-deployment
+        env:
+          ECS_CLUSTER_METADATA: torus-microservices
+          ECS_SERVICE_METADATA: metadata-service
