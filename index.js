@@ -68,7 +68,7 @@ const corsOptions = {
 
 app.disable("x-powered-by");
 
-if (process.env.NODE_ENV === "development") app.use(morgan("tiny")); // HTTP logging
+if (process.env.NODE_ENV === "development") app.use(morgan("dev")); // HTTP logging
 app.use(cors(corsOptions)); // middleware to enables cors
 app.use(helmet()); // middleware which adds http headers
 app.use(express.urlencoded({ extended: false, limit: "10mb" })); // middleware which parses body

@@ -91,7 +91,7 @@ router.post(
   async (req, res) => {
     try {
       const { shares } = req.body;
-      const requiredData = shares.map((x) => {
+      const requiredData = shares.reduce((acc, x) => {
         const {
           namespace,
           pub_key_X: pubKeyX,
@@ -99,19 +99,27 @@ router.post(
           set_data: { data },
           tableName,
         } = x;
-        return { key: constructKey(pubKeyX, pubKeyY, namespace), value: data, tableName };
-      });
-      // await knexWrite(tableName).insert(requiredData);
-      await Promise.all(
-        requiredData.map((x) => {
-          const tempTableName = x.tableName;
-          delete x.tableName;
-          return knexWrite(tempTableName).insert(x);
-        })
-      );
+        if (acc[tableName]) acc[tableName].push({ key: constructKey(pubKeyX, pubKeyY, namespace), value: data });
+        else acc[tableName] = [{ key: constructKey(pubKeyX, pubKeyY, namespace), value: data }];
+        return acc;
+      }, {});
+
+      await Promise.all(Object.keys(requiredData).map((x) => knexWrite(x).insert(requiredData[x])));
+
+      const redisData = shares.reduce((acc, x) => {
+        const {
+          namespace,
+          pub_key_X: pubKeyX,
+          pub_key_Y: pubKeyY,
+          set_data: { data },
+        } = x;
+        const key = constructKey(pubKeyX, pubKeyY, namespace);
+        acc[key] = data;
+        return acc;
+      }, {});
 
       try {
-        await Promise.all(requiredData.map((x) => redis.setex(x.key, REDIS_TIMEOUT, x.value)));
+        await Promise.all(Object.keys(redisData).map((x) => redis.setex(x, REDIS_TIMEOUT, redisData[x])));
       } catch (error) {
         log.warn("redis bulk set failed", error);
       }
@@ -136,7 +144,7 @@ router.post(
   async (req, res) => {
     try {
       const { shares } = req.body;
-      const requiredData = shares.map((x) => {
+      const requiredData = shares.reduce((acc, x) => {
         const {
           namespace,
           pub_key_X: pubKeyX,
@@ -144,19 +152,27 @@ router.post(
           set_data: { data },
           tableName,
         } = x;
-        return { key: constructKey(pubKeyX, pubKeyY, namespace), value: data, tableName };
-      });
-      // await knexWrite(tableName).insert(requiredData);
-      await Promise.all(
-        requiredData.map((x) => {
-          const tempTableName = x.tableName;
-          delete x.tableName;
-          return knexWrite(tempTableName).insert(x);
-        })
-      );
+        if (acc[tableName]) acc[tableName].push({ key: constructKey(pubKeyX, pubKeyY, namespace), value: data });
+        else acc[tableName] = [{ key: constructKey(pubKeyX, pubKeyY, namespace), value: data }];
+        return acc;
+      }, {});
+
+      await Promise.all(Object.keys(requiredData).map((x) => knexWrite(x).insert(requiredData[x])));
+
+      const redisData = shares.reduce((acc, x) => {
+        const {
+          namespace,
+          pub_key_X: pubKeyX,
+          pub_key_Y: pubKeyY,
+          set_data: { data },
+        } = x;
+        const key = constructKey(pubKeyX, pubKeyY, namespace);
+        acc[key] = data;
+        return acc;
+      }, {});
 
       try {
-        await Promise.all(requiredData.map((x) => redis.setex(x.key, REDIS_TIMEOUT, x.value)));
+        await Promise.all(Object.keys(redisData).map((x) => redis.setex(x, REDIS_TIMEOUT, redisData[x])));
       } catch (error) {
         log.warn("redis bulk set failed", error);
       }
