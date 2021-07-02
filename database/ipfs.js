@@ -4,7 +4,7 @@ const CID = require("cids");
 exports.getHashAndWriteAsync = async function (data) {
   // Get hash
   const hashes = await Promise.all(
-    data.map((x) => {
+    Object.values(data).map((x) => {
       const bytes = new TextEncoder().encode(x);
       return multihashing(bytes, "sha2-256");
     })
