@@ -4,18 +4,21 @@ const cors = require("cors");
 const morgan = require("morgan");
 const socketRedis = require("socket.io-redis");
 const log = require("loglevel");
-const Sentry = require("@sentry/node");
-const Tracing = require("@sentry/tracing");
+const HttpServer = require("http");
+const SocketIO = require("socket.io");
+const compression = require("compression");
 
+const { registerSentry, registerSentryErrorHandler } = require("./utils/sentry");
 // setup app
 const app = express();
-const http = require("http").Server(app);
+const http = HttpServer.Server(app);
+registerSentry(app);
 
 // for elb, https://shuheikagawa.com/blog/2019/04/25/keep-alive-timeout/
 http.keepAliveTimeout = 61 * 1000;
 http.headersTimeout = 65 * 1000;
 
-const io = require("socket.io")(http, {
+const io = SocketIO(http, {
   transports: ["websocket"],
   cors: {
     credentials: true,
@@ -23,7 +26,6 @@ const io = require("socket.io")(http, {
     methods: ["GET", "POST"],
   },
 });
-const redact = require("./utils/redactSentry");
 
 io.adapter(socketRedis({ host: process.env.REDIS_HOSTNAME, port: process.env.REDIS_PORT }));
 
@@ -32,27 +34,6 @@ io.on("connection", () => {
 });
 // Setup environment
 require("dotenv").config();
-
-// setup Sentry
-const isSentryConfigured = process.env.SENTRY_DSN && process.env.SENTRY_DSN.length > 0;
-if (isSentryConfigured) {
-  Sentry.init({
-    dsn: process.env.SENTRY_DSN,
-    environment: process.env.NODE_ENV,
-    integrations: [new Sentry.Integrations.Http({ tracing: true }), new Tracing.Integrations.Express({ app })],
-    sampleRate: 0.1,
-    tracesSampleRate: 0.01,
-    beforeSend(event) {
-      return redact(event);
-    },
-  });
-  app.use(
-    Sentry.Handlers.requestHandler({
-      request: ["public_address", "data", "headers", "method", "query_string", "url"],
-    })
-  );
-  app.use(Sentry.Handlers.tracingHandler());
-}
 
 log.enableAll();
 
@@ -69,15 +50,18 @@ const corsOptions = {
 app.disable("x-powered-by");
 
 if (process.env.NODE_ENV === "development") app.use(morgan("dev")); // HTTP logging
+app.use(compression()); // Enable compression of body cause ALB doesn't do so
 app.use(cors(corsOptions)); // middleware to enables cors
 app.use(helmet()); // middleware which adds http headers
-app.use(express.urlencoded({ extended: false, limit: "10mb" })); // middleware which parses body
-app.use(express.json({ limit: "10mb" })); // converts body to json
+app.use(express.urlencoded({ extended: false, limit: "20mb" })); // middleware which parses body
+app.use(express.json({ limit: "20mb" })); // converts body to json
 
 // bring all routes here
 const routes = require("./routes")(io);
 
 app.use("/", routes);
+
+registerSentryErrorHandler(app);
 
 const port = process.env.PORT || 5051;
 http.listen(port, () => log.info(`Server running on port: ${port}`));

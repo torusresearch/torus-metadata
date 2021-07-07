@@ -4,7 +4,7 @@ const pify = require("pify");
 const multer = require("multer");
 
 const upload = multer({
-  limits: { fieldSize: 25 * 1024 * 1024 },
+  limits: { fieldSize: 30 * 1024 * 1024 },
 });
 
 const { getError, constructKey, REDIS_TIMEOUT } = require("../utils");
