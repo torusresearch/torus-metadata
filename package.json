@@ -45,9 +45,13 @@
     "socket.io-redis": "^6.1.1"
   },
   "devDependencies": {
-    "eslint": "^7.30.0",
+    "@tkey/storage-layer-torus": "^4.2.1",
+    "@toruslabs/eccrypto": "^1.1.7",
+    "atob": "^2.1.2",
+    "btoa": "^1.2.1",
     "chai": "^4.3.4",
     "chai-http": "^4.3.0",
+    "eslint": "^7.30.0",
     "eslint-config-airbnb-base": "^14.2.1",
     "eslint-config-prettier": "^8.3.0",
     "eslint-config-problems": "^5.0.0",
@@ -63,6 +67,7 @@
     "husky": "^7.0.1",
     "lint-staged": "^11.0.0",
     "mocha": "^9.0.2",
+    "node-fetch": "^2.6.1",
     "nodemon": "^2.0.9",
     "prettier": "^2.3.2"
   },
