@@ -1,13 +1,13 @@
-const { redactData } = require("@toruslabs/loglevel-sentry");
+const { redactEventData } = require("@toruslabs/loglevel-sentry");
 
 module.exports = (event) => {
   if (!event.request) return event;
 
   // Redact body for sentitive URLs.
-  event.request.data = "***";
+  // event.request.data = "***";
 
   // Redact sensitive headers.
-  event.request.headers = redactData(event.request.headers);
+  event.request.headers = redactEventData(event.request.headers);
 
   return event;
 };
