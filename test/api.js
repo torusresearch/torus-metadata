@@ -43,21 +43,6 @@ if (process.env.LOG_DEBUG === "no") {
  * Testing API calls.
  */
 describe("API-calls", function () {
-  /**
-   * DO NOT USE THIS PAIR ELSE WHERE. THIS IS STRICTLY FOR TESTING PURPOSES.
-   */
-  const publicAddress = "0xd682b1Db49c010BF03BafC4Cf7CC366D9b8A4a03";
-  const privateKey = "9bc166bda58a5e189bf24f4faa1296c5fcf9b818ed23492d5a7239ce102e9301";
-
-  /**
-   * before() block is called before all the other tests are conducted
-   * we are using this to generate a authentication token
-   */
-  before("One time execution for all tests", async function () {});
-
-  /*
-   * Test the /default route
-   */
   describe("/default", function () {
     it("it should return a welcome message", async function () {
       const res = await request(server).get("/");
@@ -80,7 +65,7 @@ describe("API-calls", function () {
       PRIVATE_KEY = new BN(generatePrivate());
     });
 
-    it("#it should not pass if signature field is missing", async function () {
+    it("#it reject if signature field is missing", async function () {
       const message = {
         test: Math.random().toString(36).substring(7),
       };
@@ -99,7 +84,7 @@ describe("API-calls", function () {
       }
     });
 
-    it("#it should not pass if pubKeyX/pubKeyY field is missing", async function () {
+    it("#it reject if pubKeyX/pubKeyY field is missing", async function () {
       const message = {
         test: Math.random().toString(36).substring(7),
       };
@@ -118,7 +103,7 @@ describe("API-calls", function () {
       }
     });
 
-    it("#it should not pass if the timestamp is missing", async function () {
+    it("#it reject if the timestamp is missing", async function () {
       const message = {
         test: Math.random().toString(36).substring(7),
       };
@@ -137,7 +122,7 @@ describe("API-calls", function () {
       }
     });
 
-    it("#it should not pass if the timestamp is old", async function () {
+    it("#it reject if the timestamp is old", async function () {
       const message = {
         test: Math.random().toString(36).substring(7),
       };
@@ -156,7 +141,7 @@ describe("API-calls", function () {
       }
     });
 
-    it("#it should not pass if signature is invalid", async function () {
+    it("#it reject if signature is invalid", async function () {
       const message = {
         test: Math.random().toString(36).substring(7),
       };
@@ -267,7 +252,7 @@ describe("API-calls", function () {
       }
     });
 
-    it("#it should reject if one of the shares has an invalid signature", async function () {
+    it("#it should reject if one of the shares has an old timestamp", async function () {
       const finalMetadataParams = await Promise.all(
         messages.map(async (el, i) => {
           const bufferMetadata = Buffer.from(stringify(el));
@@ -292,7 +277,7 @@ describe("API-calls", function () {
       }
     });
 
-    it("#it should reject if one of the shares has incorrect timestamp", async function () {
+    it("#it should reject if one of the shares has an invalid signature", async function () {
       const finalMetadataParams = await Promise.all(
         messages.map(async (el, i) => {
           const bufferMetadata = Buffer.from(stringify(el));
