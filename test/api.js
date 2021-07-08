@@ -65,7 +65,7 @@ describe("API-calls", function () {
       PRIVATE_KEY = new BN(generatePrivate());
     });
 
-    it("#it reject if signature field is missing", async function () {
+    it("#it should reject if signature field is missing", async function () {
       const message = {
         test: Math.random().toString(36).substring(7),
       };
@@ -84,7 +84,7 @@ describe("API-calls", function () {
       }
     });
 
-    it("#it reject if pubKeyX/pubKeyY field is missing", async function () {
+    it("#it should reject if pubKeyX/pubKeyY field is missing", async function () {
       const message = {
         test: Math.random().toString(36).substring(7),
       };
@@ -103,7 +103,7 @@ describe("API-calls", function () {
       }
     });
 
-    it("#it reject if the timestamp is missing", async function () {
+    it("#it should reject if the timestamp is missing", async function () {
       const message = {
         test: Math.random().toString(36).substring(7),
       };
@@ -122,7 +122,7 @@ describe("API-calls", function () {
       }
     });
 
-    it("#it reject if the timestamp is old", async function () {
+    it("#it should reject if the timestamp is old", async function () {
       const message = {
         test: Math.random().toString(36).substring(7),
       };
@@ -141,7 +141,7 @@ describe("API-calls", function () {
       }
     });
 
-    it("#it reject if signature is invalid", async function () {
+    it("#it should reject if signature is invalid", async function () {
       const message = {
         test: Math.random().toString(36).substring(7),
       };
