@@ -176,6 +176,7 @@ describe("API-calls", function () {
     let storageLayer = new TorusStorageLayer({ hostUrl: server });
     let messages = [];
     let privateKeys = [];
+    let finalMetadataParams = [];
     const options = {
       mode: "cors",
       method: "POST",
@@ -188,7 +189,7 @@ describe("API-calls", function () {
       isUrlEncodedData: true,
     };
 
-    beforeEach(function () {
+    beforeEach(async function () {
       PRIVATE_KEY = new BN(generatePrivate());
       messages = [];
       for (let i = 0; i < 4; i += 1) {
@@ -201,10 +202,9 @@ describe("API-calls", function () {
       for (let i = 0; i < 4; i += 1) {
         privateKeys.push(generatePrivate().toString("hex"));
       }
-    });
 
-    it("#it should reject if data is not an array", async function () {
-      const finalMetadataParams = await Promise.all(
+      finalMetadataParams = [];
+      finalMetadataParams = await Promise.all(
         messages.map(async (el, i) => {
           const bufferMetadata = Buffer.from(stringify(el));
           let encryptedDetails = await encrypt(getPubKeyECC(privateKeys[i]), bufferMetadata);
@@ -213,7 +213,9 @@ describe("API-calls", function () {
           return metadataParams;
         })
       );
+    });
 
+    it("#it should reject if data is not an array", async function () {
       const FD = new FormData();
       finalMetadataParams.forEach((_, index) => {
         FD.append(index.toString(), "");
@@ -228,16 +230,6 @@ describe("API-calls", function () {
     });
 
     it("#it should reject if one of the shares has missing pubkey", async function () {
-      const finalMetadataParams = await Promise.all(
-        messages.map(async (el, i) => {
-          const bufferMetadata = Buffer.from(stringify(el));
-          let encryptedDetails = await encrypt(getPubKeyECC(privateKeys[i]), bufferMetadata);
-          const serializedEncryptedDetails = btoa(stringify(encryptedDetails));
-          const metadataParams = storageLayer.generateMetadataParams(serializedEncryptedDetails, undefined, privateKeys[i]);
-          return metadataParams;
-        })
-      );
-
       finalMetadataParams[0].pub_key_X = "";
       const FD = new FormData();
       finalMetadataParams.forEach((el, index) => {
@@ -253,16 +245,6 @@ describe("API-calls", function () {
     });
 
     it("#it should reject if one of the shares has an old timestamp", async function () {
-      const finalMetadataParams = await Promise.all(
-        messages.map(async (el, i) => {
-          const bufferMetadata = Buffer.from(stringify(el));
-          let encryptedDetails = await encrypt(getPubKeyECC(privateKeys[i]), bufferMetadata);
-          const serializedEncryptedDetails = btoa(stringify(encryptedDetails));
-          const metadataParams = storageLayer.generateMetadataParams(serializedEncryptedDetails, undefined, privateKeys[i]);
-          return metadataParams;
-        })
-      );
-
       finalMetadataParams[0].set_data.timestamp = new BN(~~(Date.now() / 1000) - 65).toString(16);
       const FD = new FormData();
       finalMetadataParams.forEach((el, index) => {
@@ -278,16 +260,6 @@ describe("API-calls", function () {
     });
 
     it("#it should reject if one of the shares has an invalid signature", async function () {
-      const finalMetadataParams = await Promise.all(
-        messages.map(async (el, i) => {
-          const bufferMetadata = Buffer.from(stringify(el));
-          let encryptedDetails = await encrypt(getPubKeyECC(privateKeys[i]), bufferMetadata);
-          const serializedEncryptedDetails = btoa(stringify(encryptedDetails));
-          const metadataParams = storageLayer.generateMetadataParams(serializedEncryptedDetails, undefined, privateKeys[i]);
-          return metadataParams;
-        })
-      );
-
       finalMetadataParams[0].set_data.timestamp = new BN(~~(Date.now() / 1000) - 10).toString(16);
       const FD = new FormData();
       finalMetadataParams.forEach((el, index) => {
