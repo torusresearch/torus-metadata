@@ -25,6 +25,7 @@ const chai = require("chai");
 const chaiHttp = require("chai-http");
 const BN = require("bn.js");
 const { generatePrivate } = require("@toruslabs/eccrypto");
+const { OnUnhandledRejection } = require("@sentry/node/dist/integrations");
 require("dotenv").config();
 
 const port = 5051;
@@ -183,20 +184,140 @@ describe("API-calls", function () {
       let data = await storageLayer.getMetadata({ privKey: PRIVATE_KEY });
       assert.strictEqual(data.test, message.test);
     });
+  });
 
-    it("#it should be able set stream data", async function () {
-      const messages = [];
+  describe("/bulk_set_stream", function () {
+    let PRIVATE_KEY;
+    let storageLayer = new TorusStorageLayer({ hostUrl: server });
+    let messages = [];
+    let privateKeys = [];
+    const options = {
+      mode: "cors",
+      method: "POST",
+      headers: {
+        "Content-Type": undefined,
+      },
+    };
+
+    const customOptions = {
+      isUrlEncodedData: true,
+    };
+
+    beforeEach(function () {
+      PRIVATE_KEY = new BN(generatePrivate());
+      messages = [];
       for (let i = 0; i < 4; i += 1) {
         messages.push({
           test: Math.random().toString(36).substring(7),
         });
       }
 
-      const privateKeys = [];
+      privateKeys = [];
       for (let i = 0; i < 4; i += 1) {
         privateKeys.push(generatePrivate().toString("hex"));
       }
+    });
 
+    it("#it should reject if data is not an array", async function () {
+      const finalMetadataParams = await Promise.all(
+        messages.map(async (el, i) => {
+          const bufferMetadata = Buffer.from(stringify(el));
+          let encryptedDetails = await encrypt(getPubKeyECC(privateKeys[i]), bufferMetadata);
+          const serializedEncryptedDetails = btoa(stringify(encryptedDetails));
+          const metadataParams = storageLayer.generateMetadataParams(serializedEncryptedDetails, undefined, privateKeys[i]);
+          return metadataParams;
+        })
+      );
+
+      const FD = new FormData();
+      finalMetadataParams.forEach((_, index) => {
+        FD.append(index.toString(), "");
+      });
+
+      try {
+        await post(`${server}/bulk_set_stream`, FD, options, customOptions);
+      } catch (err) {
+        let { error } = await err.json();
+        assert.deepStrictEqual(error.message, "Unexpected end of JSON input"); // same goes for pubkeyY
+      }
+    });
+
+    it("#it should reject if one of the shares has missing pubkey", async function () {
+      const finalMetadataParams = await Promise.all(
+        messages.map(async (el, i) => {
+          const bufferMetadata = Buffer.from(stringify(el));
+          let encryptedDetails = await encrypt(getPubKeyECC(privateKeys[i]), bufferMetadata);
+          const serializedEncryptedDetails = btoa(stringify(encryptedDetails));
+          const metadataParams = storageLayer.generateMetadataParams(serializedEncryptedDetails, undefined, privateKeys[i]);
+          return metadataParams;
+        })
+      );
+
+      finalMetadataParams[0].pub_key_X = "";
+      const FD = new FormData();
+      finalMetadataParams.forEach((el, index) => {
+        FD.append(index.toString(), JSON.stringify(el));
+      });
+
+      try {
+        await post(`${server}/bulk_set_stream`, FD, options, customOptions);
+      } catch (err) {
+        let { error } = await err.json();
+        assert.deepStrictEqual(error.pub_key_X, "pub_key_X field is required"); // same goes for pubkeyY
+      }
+    });
+
+    it("#it should reject if one of the shares has an invalid signature", async function () {
+      const finalMetadataParams = await Promise.all(
+        messages.map(async (el, i) => {
+          const bufferMetadata = Buffer.from(stringify(el));
+          let encryptedDetails = await encrypt(getPubKeyECC(privateKeys[i]), bufferMetadata);
+          const serializedEncryptedDetails = btoa(stringify(encryptedDetails));
+          const metadataParams = storageLayer.generateMetadataParams(serializedEncryptedDetails, undefined, privateKeys[i]);
+          return metadataParams;
+        })
+      );
+
+      finalMetadataParams[0].set_data.timestamp = new BN(~~(Date.now() / 1000) - 65).toString(16);
+      const FD = new FormData();
+      finalMetadataParams.forEach((el, index) => {
+        FD.append(index.toString(), JSON.stringify(el));
+      });
+
+      try {
+        await post(`${server}/bulk_set_stream`, FD, options, customOptions);
+      } catch (err) {
+        let { error } = await err.json();
+        assert.deepStrictEqual(error.timestamp, "Message has been signed more than 60s ago"); // same goes for pubkeyY
+      }
+    });
+
+    it("#it should reject if one of the shares has incorrect timestamp", async function () {
+      const finalMetadataParams = await Promise.all(
+        messages.map(async (el, i) => {
+          const bufferMetadata = Buffer.from(stringify(el));
+          let encryptedDetails = await encrypt(getPubKeyECC(privateKeys[i]), bufferMetadata);
+          const serializedEncryptedDetails = btoa(stringify(encryptedDetails));
+          const metadataParams = storageLayer.generateMetadataParams(serializedEncryptedDetails, undefined, privateKeys[i]);
+          return metadataParams;
+        })
+      );
+
+      finalMetadataParams[0].set_data.timestamp = new BN(~~(Date.now() / 1000) - 10).toString(16);
+      const FD = new FormData();
+      finalMetadataParams.forEach((el, index) => {
+        FD.append(index.toString(), JSON.stringify(el));
+      });
+
+      try {
+        await post(`${server}/bulk_set_stream`, FD, options, customOptions);
+      } catch (err) {
+        let { error } = await err.json();
+        assert.deepStrictEqual(error.signature, "Invalid signature"); // same goes for pubkeyY
+      }
+    });
+
+    it("#it should be able get/set stream data correctly", async function () {
       await storageLayer.setMetadataStream({ input: messages, privKey: privateKeys });
       const resp = await storageLayer.getMetadata({ privKey: privateKeys[0] });
       const resp2 = await storageLayer.getMetadata({ privKey: privateKeys[1] });

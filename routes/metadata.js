@@ -137,7 +137,7 @@ router.post(
   "/bulk_set_stream",
   upload.none(),
   serializeStreamBody,
-  validationLoopMiddleware([("pub_key_X", "pub_key_Y", "signature")], "shares"),
+  validationLoopMiddleware(["pub_key_X", "pub_key_Y", "signature"], "shares"),
   validateMetadataLoopInput("shares"),
   validateLoopSignature("shares"),
   validateNamespaceLoop("shares"),
