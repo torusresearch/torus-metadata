@@ -12,8 +12,12 @@
 global.btoa = require("btoa");
 global.atob = require("atob");
 global.fetch = require("node-fetch");
+global.FormData = require("form-data");
 
 const { TorusStorageLayer } = require("@tkey/storage-layer-torus");
+const { encrypt, getPubKeyECC } = require("@tkey/common-types");
+const stringify = require("json-stable-stringify");
+const { post } = require("@toruslabs/http-helpers");
 
 // During the test the env variable is set to test
 // Require the dev-dependencies
@@ -67,7 +71,7 @@ describe("API-calls", function () {
     });
   });
 
-  describe.only("/metadata", function () {
+  describe("/set", function () {
     let PRIVATE_KEY;
     let storageLayer = new TorusStorageLayer({ hostUrl: server });
 
@@ -75,7 +79,102 @@ describe("API-calls", function () {
       PRIVATE_KEY = new BN(generatePrivate());
     });
 
-    it("it should be able to set/get metadata with correct validation", async function () {
+    it("#it should not pass if signature field is missing", async function () {
+      const message = {
+        test: Math.random().toString(36).substring(7),
+      };
+
+      const bufferMetadata = Buffer.from(stringify(message));
+      let encryptedDetails = await encrypt(getPubKeyECC(PRIVATE_KEY), bufferMetadata);
+      const serializedEncryptedDetails = btoa(stringify(encryptedDetails));
+
+      let metadataParams = storageLayer.generateMetadataParams(serializedEncryptedDetails, undefined, PRIVATE_KEY);
+      metadataParams.signature = ""; // remove signature
+      try {
+        await post(`${server}/set`, metadataParams);
+      } catch (err) {
+        let { error } = await err.json();
+        assert.deepStrictEqual(error.signature, "signature field is required");
+      }
+    });
+
+    it("#it should not pass if pubKeyX/pubKeyY field is missing", async function () {
+      const message = {
+        test: Math.random().toString(36).substring(7),
+      };
+
+      const bufferMetadata = Buffer.from(stringify(message));
+      let encryptedDetails = await encrypt(getPubKeyECC(PRIVATE_KEY), bufferMetadata);
+      const serializedEncryptedDetails = btoa(stringify(encryptedDetails));
+
+      let metadataParams = storageLayer.generateMetadataParams(serializedEncryptedDetails, undefined, PRIVATE_KEY);
+      metadataParams.pub_key_X = ""; // remove signature
+      try {
+        await post(`${server}/set`, metadataParams);
+      } catch (err) {
+        let { error } = await err.json();
+        assert.deepStrictEqual(error.pub_key_X, "pub_key_X field is required"); // same goes for pubkeyY
+      }
+    });
+
+    it("#it should not pass if the timestamp is missing", async function () {
+      const message = {
+        test: Math.random().toString(36).substring(7),
+      };
+
+      const bufferMetadata = Buffer.from(stringify(message));
+      let encryptedDetails = await encrypt(getPubKeyECC(PRIVATE_KEY), bufferMetadata);
+      const serializedEncryptedDetails = btoa(stringify(encryptedDetails));
+
+      let metadataParams = storageLayer.generateMetadataParams(serializedEncryptedDetails, undefined, PRIVATE_KEY);
+      metadataParams.set_data.timestamp = ""; // remove signature
+      try {
+        await post(`${server}/set`, metadataParams);
+      } catch (err) {
+        let { error } = await err.json();
+        assert.deepStrictEqual(error.timestamp, "timestamp field is required"); // same goes for pubkeyY
+      }
+    });
+
+    it("#it should not pass if the timestamp is old", async function () {
+      const message = {
+        test: Math.random().toString(36).substring(7),
+      };
+
+      const bufferMetadata = Buffer.from(stringify(message));
+      let encryptedDetails = await encrypt(getPubKeyECC(PRIVATE_KEY), bufferMetadata);
+      const serializedEncryptedDetails = btoa(stringify(encryptedDetails));
+
+      let metadataParams = storageLayer.generateMetadataParams(serializedEncryptedDetails, undefined, PRIVATE_KEY);
+      metadataParams.set_data.timestamp = new BN(~~(Date.now() / 1000) - 65).toString(16);
+      try {
+        await post(`${server}/set`, metadataParams);
+      } catch (err) {
+        let { error } = await err.json();
+        assert.deepStrictEqual(error.timestamp, "Message has been signed more than 60s ago"); // same goes for pubkeyY
+      }
+    });
+
+    it("#it should not pass if signature is invalid", async function () {
+      const message = {
+        test: Math.random().toString(36).substring(7),
+      };
+
+      const bufferMetadata = Buffer.from(stringify(message));
+      let encryptedDetails = await encrypt(getPubKeyECC(PRIVATE_KEY), bufferMetadata);
+      const serializedEncryptedDetails = btoa(stringify(encryptedDetails));
+
+      let metadataParams = storageLayer.generateMetadataParams(serializedEncryptedDetails, undefined, PRIVATE_KEY);
+      metadataParams.set_data.timestamp = new BN(~~(Date.now() / 1000) - 10).toString(16); // change timestamp, signature no longer valid
+      try {
+        await post(`${server}/set`, metadataParams);
+      } catch (err) {
+        let { error } = await err.json();
+        assert.deepStrictEqual(error.signature, "Invalid signature"); // same goes for pubkeyY
+      }
+    });
+
+    it("#it should be able to set/get metadata with correct validation", async function () {
       const message = {
         test: Math.random().toString(36).substring(7),
       };
@@ -84,13 +183,26 @@ describe("API-calls", function () {
       let data = await storageLayer.getMetadata({ privKey: PRIVATE_KEY });
       assert.strictEqual(data.test, message.test);
     });
-  });
 
-  after(function () {
-    // done();
-  });
+    it("#it should be able set stream data", async function () {
+      const messages = [];
+      for (let i = 0; i < 4; i += 1) {
+        messages.push({
+          test: Math.random().toString(36).substring(7),
+        });
+      }
 
-  /*
-   * Test the /POST route
-   */
+      const privateKeys = [];
+      for (let i = 0; i < 4; i += 1) {
+        privateKeys.push(generatePrivate().toString("hex"));
+      }
+
+      await storageLayer.setMetadataStream({ input: messages, privKey: privateKeys });
+      const resp = await storageLayer.getMetadata({ privKey: privateKeys[0] });
+      const resp2 = await storageLayer.getMetadata({ privKey: privateKeys[1] });
+
+      assert.deepStrictEqual(resp, messages[0], "set and get message should be equal");
+      assert.deepStrictEqual(resp2, messages[1], "set and get message should be equal");
+    });
+  });
 });

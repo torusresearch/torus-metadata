@@ -48,7 +48,7 @@ router.post("/get", validationMiddleware(["pub_key_X", "pub_key_Y"]), validateNa
 
 router.post(
   "/set",
-  validationMiddleware([("pub_key_X", "pub_key_Y", "signature")]),
+  validationMiddleware(["pub_key_X", "pub_key_Y", "signature"]),
   validateMetadataInput,
   validateSignature,
   validateNamespace,

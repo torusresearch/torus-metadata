@@ -13,7 +13,7 @@
     "migrate:down": "npx knex migrate:down --knexfile ./database/knexfile.js",
     "lint:js": "eslint --fix '**/*.js'",
     "prepare": "husky install",
-    "test": "cross-env NODE_ENV=development LOG_DEBUG=yes mocha ./test/api.js"
+    "test": "cross-env NODE_ENV=development LOG_DEBUG=yes mocha ./test/api.js --exit"
   },
   "keywords": [],
   "author": "Chaitanya Potti",
@@ -64,6 +64,7 @@
     "eslint-plugin-prettier": "^3.4.0",
     "eslint-plugin-promise": "^5.1.0",
     "eslint-plugin-security": "^1.4.0",
+    "form-data": "^4.0.0",
     "husky": "^7.0.1",
     "lint-staged": "^11.0.0",
     "mocha": "^9.0.2",
