@@ -14,7 +14,8 @@
   ],
   "plugins": ["prettier", "promise", "chai-expect", "mocha", "security", "node"],
   "parserOptions": {
-    "sourceType": "module"
+    "sourceType": "module",
+    "ecmaVersion": 2020
   },
   "env": {
     "es6": true,
