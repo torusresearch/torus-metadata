@@ -7,6 +7,8 @@ const log = require("loglevel");
 const HttpServer = require("http");
 const SocketIO = require("socket.io");
 const compression = require("compression");
+// Setup environment
+require("dotenv").config();
 
 const { registerSentry, registerSentryErrorHandler } = require("./utils/sentry");
 // setup app
@@ -32,8 +34,6 @@ io.adapter(socketRedis({ host: process.env.REDIS_HOSTNAME, port: process.env.RED
 io.on("connection", () => {
   log.debug("connected");
 });
-// Setup environment
-require("dotenv").config();
 
 log.enableAll();
 
