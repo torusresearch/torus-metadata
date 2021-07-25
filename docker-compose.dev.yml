@@ -1,9 +1,9 @@
-version: '3'
+version: "3"
 
 services:
   ipfs:
     image: ipfs/go-ipfs
-    ports: 
+    ports:
       - "5001:5001/tcp"
   redis:
     restart: always
@@ -16,7 +16,8 @@ services:
     # platform: linux/x86_64
     restart: always
     image: mysql:5.7
-    command: --max_allowed_packet=32505856
+    # 64 MB - 67108864
+    command: --max_allowed_packet=67108864
     env_file:
       - ./.env.development
     ports:
