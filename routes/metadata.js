@@ -7,7 +7,7 @@ const upload = multer({
   limits: { fieldSize: 30 * 1024 * 1024 },
 });
 
-const { getError, constructKey, REDIS_TIMEOUT } = require("../utils");
+const { getError, constructKey, REDIS_TIMEOUT, MAX_BATCH_SIZE } = require("../utils");
 const {
   validationMiddleware,
   validationLoopMiddleware,
@@ -144,38 +144,53 @@ router.post(
   async (req, res) => {
     try {
       const { shares } = req.body;
-      const requiredData = shares.reduce((acc, x) => {
+
+      const redisData = {};
+      const totalBatchesPerTable = {}; // Key table name, value array of batch data (max 60MB)
+      const currentBatchSizePerTable = {}; // Key table name, value size of current batch
+      for (const share of shares) {
         const {
           namespace,
           pub_key_X: pubKeyX,
           pub_key_Y: pubKeyY,
           set_data: { data },
           tableName,
-        } = x;
-        if (acc[tableName]) acc[tableName].push({ key: constructKey(pubKeyX, pubKeyY, namespace), value: data });
-        else acc[tableName] = [{ key: constructKey(pubKeyX, pubKeyY, namespace), value: data }];
-        return acc;
-      }, {});
-
-      await Promise.all(Object.keys(requiredData).map((x) => knexWrite(x).insert(requiredData[x])));
-
-      const redisData = shares.reduce((acc, x) => {
-        const {
-          namespace,
-          pub_key_X: pubKeyX,
-          pub_key_Y: pubKeyY,
-          set_data: { data },
-        } = x;
+        } = share;
         const key = constructKey(pubKeyX, pubKeyY, namespace);
-        acc[key] = data;
-        return acc;
-      }, {});
+        redisData[key] = data;
+        // Initialize
+        totalBatchesPerTable[tableName] = totalBatchesPerTable[tableName] || [[{ key, value: data }]];
+        currentBatchSizePerTable[tableName] = currentBatchSizePerTable[tableName] || 0;
+        // get current values
+        const allBatchesInCurrentTable = totalBatchesPerTable[tableName];
+        const sizeInCurrentTable = currentBatchSizePerTable[tableName];
+        const latestBatchInCurrentTable = allBatchesInCurrentTable[allBatchesInCurrentTable.length - 1];
+        // do checks
+        const currentDataLength = Buffer.byteLength(data);
+        if (currentDataLength + sizeInCurrentTable <= MAX_BATCH_SIZE) {
+          latestBatchInCurrentTable.push({ key, value: data });
+          currentBatchSizePerTable[tableName] = currentDataLength + sizeInCurrentTable;
+        } else {
+          // create new batch
+          allBatchesInCurrentTable.push([{ key, value: data }]);
+          // reset values
+          currentBatchSizePerTable[tableName] = currentDataLength;
+        }
+      }
+
+      await Promise.all(Object.keys(totalBatchesPerTable).map((x) => insertDataInBatchForTable(x, totalBatchesPerTable[x])));
 
       try {
         await Promise.all(Object.keys(redisData).map((x) => redis.setex(x, REDIS_TIMEOUT, redisData[x])));
       } catch (error) {
         log.warn("redis bulk set failed", error);
       }
+
+      const requiredData = Object.keys(totalBatchesPerTable).reduce((acc, x) => {
+        const batch = totalBatchesPerTable[x];
+        acc[x] = batch.flatMap((y) => y);
+        return acc;
+      });
 
       const ipfsResult = await getHashAndWriteAsync(requiredData);
       return res.json({ message: ipfsResult });
@@ -185,5 +200,15 @@ router.post(
     }
   }
 );
+
+// data must be array of arrays with each array lesser than MAX_BATCH_SIZE
+async function insertDataInBatchForTable(tableName, data) {
+  return knexWrite.transaction(async (trx) => {
+    for (const batch of data) {
+      // eslint-disable-next-line no-await-in-loop
+      await knexWrite(tableName).insert(batch).transacting(trx);
+    }
+  });
+}
 
 module.exports = router;

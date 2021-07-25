@@ -17,3 +17,4 @@ exports.randomID = () => `${Math.random().toString(36).substr(2, 9)}`;
 
 exports.REDIS_TIMEOUT = 10; // seconds
 exports.REDIS_LOCK_TIMEOUT = 60;
+exports.MAX_BATCH_SIZE = 60 * 1024 * 1024; // 60MB

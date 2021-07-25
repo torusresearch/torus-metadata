@@ -13,7 +13,7 @@
     "migrate:down": "npx knex migrate:down --knexfile ./database/knexfile.js",
     "lint:js": "eslint --fix '**/*.js'",
     "prepare": "husky install",
-    "test": "cross-env NODE_ENV=development LOG_DEBUG=yes mocha ./test/api.js --exit"
+    "test": "cross-env NODE_ENV=development LOG_DEBUG=yes mocha"
   },
   "keywords": [],
   "author": "Chaitanya Potti",
@@ -51,6 +51,7 @@
     "btoa": "^1.2.1",
     "chai": "^4.3.4",
     "chai-http": "^4.3.0",
+    "cross-env": "^7.0.3",
     "eslint": "^7.30.0",
     "eslint-config-airbnb-base": "^14.2.1",
     "eslint-config-prettier": "^8.3.0",

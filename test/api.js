@@ -8,12 +8,6 @@
  * @requires NPM:chai-http
  */
 
-// setup for TorusStorageLayer
-global.btoa = require("btoa");
-global.atob = require("atob");
-global.fetch = require("node-fetch");
-global.FormData = require("form-data");
-
 const { TorusStorageLayer } = require("@tkey/storage-layer-torus");
 const { encrypt, getPubKeyECC } = require("@tkey/common-types");
 const stringify = require("json-stable-stringify");
@@ -25,19 +19,12 @@ const chai = require("chai");
 const chaiHttp = require("chai-http");
 const BN = require("bn.js");
 const { generatePrivate } = require("@toruslabs/eccrypto");
-const { OnUnhandledRejection } = require("@sentry/node/dist/integrations");
-require("dotenv").config();
 
 const port = 5051;
 const host = process.env.HOST || "localhost";
 const server = `http://${host}:${port}`;
 chai.use(chaiHttp);
 const { assert, request } = chai;
-
-// Comment in/out the following line to include/disclude comments in terminal
-if (process.env.LOG_DEBUG === "no") {
-  console.log = function () {};
-}
 
 /**
  * Testing API calls.
