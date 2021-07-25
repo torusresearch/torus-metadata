@@ -1,0 +1,33 @@
+version: "3"
+
+services:
+  ipfs:
+    image: ipfs/go-ipfs
+    ports:
+      - "5001:5001/tcp"
+  redis:
+    restart: always
+    image: redis:6-alpine
+    env_file:
+      - ./.env.development
+    ports:
+      - "6379:6379"
+  mysql:
+    restart: always
+    image: mysql:5.7
+    env_file:
+      - ./.env.development
+    ports:
+      - "3306:3306"
+  torus-metadata-js:
+    restart: "no"
+    depends_on:
+      - mysql
+      - redis
+      - ipfs
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    env_file:
+      - ./.env.development
+    command: "/app/test/run.sh"
