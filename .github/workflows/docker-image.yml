@@ -38,6 +38,8 @@ jobs:
     environment:
       name: ECR_PUSH
 
+    needs: test
+
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -80,6 +82,8 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: ECR_PUSH
+
+    needs: test
 
     steps:
       - name: Checkout
