@@ -59,7 +59,7 @@ describe("API-calls", function () {
 
       const bufferMetadata = Buffer.from(stringify(message));
       let encryptedDetails = await encrypt(getPubKeyECC(PRIVATE_KEY), bufferMetadata);
-      const serializedEncryptedDetails = btoa(stringify(encryptedDetails));
+      const serializedEncryptedDetails = globalThis.btoa(stringify(encryptedDetails));
 
       let metadataParams = storageLayer.generateMetadataParams(serializedEncryptedDetails, undefined, PRIVATE_KEY);
       metadataParams.signature = ""; // remove signature
@@ -78,7 +78,7 @@ describe("API-calls", function () {
 
       const bufferMetadata = Buffer.from(stringify(message));
       let encryptedDetails = await encrypt(getPubKeyECC(PRIVATE_KEY), bufferMetadata);
-      const serializedEncryptedDetails = btoa(stringify(encryptedDetails));
+      const serializedEncryptedDetails = globalThis.btoa(stringify(encryptedDetails));
 
       let metadataParams = storageLayer.generateMetadataParams(serializedEncryptedDetails, undefined, PRIVATE_KEY);
       metadataParams.pub_key_X = ""; // remove signature
@@ -97,7 +97,7 @@ describe("API-calls", function () {
 
       const bufferMetadata = Buffer.from(stringify(message));
       let encryptedDetails = await encrypt(getPubKeyECC(PRIVATE_KEY), bufferMetadata);
-      const serializedEncryptedDetails = btoa(stringify(encryptedDetails));
+      const serializedEncryptedDetails = globalThis.btoa(stringify(encryptedDetails));
 
       let metadataParams = storageLayer.generateMetadataParams(serializedEncryptedDetails, undefined, PRIVATE_KEY);
       metadataParams.set_data.timestamp = ""; // remove signature
@@ -116,7 +116,7 @@ describe("API-calls", function () {
 
       const bufferMetadata = Buffer.from(stringify(message));
       let encryptedDetails = await encrypt(getPubKeyECC(PRIVATE_KEY), bufferMetadata);
-      const serializedEncryptedDetails = btoa(stringify(encryptedDetails));
+      const serializedEncryptedDetails = globalThis.btoa(stringify(encryptedDetails));
 
       let metadataParams = storageLayer.generateMetadataParams(serializedEncryptedDetails, undefined, PRIVATE_KEY);
       metadataParams.set_data.timestamp = new BN(~~(Date.now() / 1000) - 65).toString(16);
@@ -135,7 +135,7 @@ describe("API-calls", function () {
 
       const bufferMetadata = Buffer.from(stringify(message));
       let encryptedDetails = await encrypt(getPubKeyECC(PRIVATE_KEY), bufferMetadata);
-      const serializedEncryptedDetails = btoa(stringify(encryptedDetails));
+      const serializedEncryptedDetails = globalThis.btoa(stringify(encryptedDetails));
 
       let metadataParams = storageLayer.generateMetadataParams(serializedEncryptedDetails, undefined, PRIVATE_KEY);
       metadataParams.set_data.timestamp = new BN(~~(Date.now() / 1000) - 10).toString(16); // change timestamp, signature no longer valid
@@ -195,7 +195,7 @@ describe("API-calls", function () {
         messages.map(async (el, i) => {
           const bufferMetadata = Buffer.from(stringify(el));
           let encryptedDetails = await encrypt(getPubKeyECC(privateKeys[i]), bufferMetadata);
-          const serializedEncryptedDetails = btoa(stringify(encryptedDetails));
+          const serializedEncryptedDetails = globalThis.btoa(stringify(encryptedDetails));
           const metadataParams = storageLayer.generateMetadataParams(serializedEncryptedDetails, undefined, privateKeys[i]);
           return metadataParams;
         })
