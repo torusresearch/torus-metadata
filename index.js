@@ -17,8 +17,8 @@ const http = HttpServer.Server(app);
 registerSentry(app);
 
 // for elb, https://shuheikagawa.com/blog/2019/04/25/keep-alive-timeout/
-http.keepAliveTimeout = 61 * 1000;
-http.headersTimeout = 65 * 1000;
+http.keepAliveTimeout = 301 * 1000;
+http.headersTimeout = 305 * 1000;
 
 const io = SocketIO(http, {
   transports: ["websocket"],
