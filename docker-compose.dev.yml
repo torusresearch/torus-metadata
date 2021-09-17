@@ -13,7 +13,7 @@ services:
     ports:
       - "6379:6379"
   mysql:
-    # platform: linux/x86_64
+    platform: linux/x86_64
     restart: always
     image: mysql:5.7
     # 64 MB - 67108864

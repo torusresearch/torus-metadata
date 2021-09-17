@@ -211,4 +211,74 @@ async function insertDataInBatchForTable(tableName, data) {
   });
 }
 
+// New nonce functions for v2
+// TODO: implement delete
+router.post("/get_or_set_nonce", validationMiddleware(["pub_key_X", "pub_key_Y"]), validateMetadataInput, validateNamespace, async (req, res) => {
+  try {
+    const {
+      pub_key_X: pubKeyX,
+      pub_key_Y: pubKeyY,
+      set_data: { suggestedNonce },
+      tableName,
+    } = req.body;
+
+    const key = constructKey(pubKeyX, pubKeyY, "noncev2");
+    const oldKey = constructKey(pubKeyX, pubKeyY, "");
+
+    // check if it already exists
+    let oldValue;
+    try {
+      oldValue = await redis.get(oldKey);
+    } catch (error) {
+      log.warn("redis get failed", error);
+    }
+
+    if (!oldValue) {
+      const oldRetrievedNonce = await knexRead(tableName).where({ oldKey }).orderBy("created_at", "desc").orderBy("id", "desc").first();
+      // i want a nil value here
+      oldValue = (oldRetrievedNonce && oldRetrievedNonce.value) || undefined;
+    }
+
+    if (oldValue) {
+      return res.json({ typeOfUser: "v1" });
+    }
+
+    // if not check if v2 has been created before
+    let value;
+    try {
+      value = await redis.get(key);
+    } catch (error) {
+      log.warn("redis get failed", error);
+    }
+
+    if (!value) {
+      const newRetrievedNonce = await knexRead(tableName).where({ key }).orderBy("created_at", "desc").orderBy("id", "desc").first();
+      value = (newRetrievedNonce && newRetrievedNonce.value) || undefined;
+    }
+
+    if (value) {
+      return res.json({ nonce: value, typeOfUser: "v2", newUser: false });
+    }
+
+    // its a new v2 user, lets set his nonce
+    // TODO: allow random creation of nonce here
+    await knexWrite(tableName).insert({
+      key,
+      value: suggestedNonce,
+    });
+
+    try {
+      await redis.setex(key, REDIS_TIMEOUT, suggestedNonce);
+    } catch (error) {
+      log.warn("redis set failed", error);
+    }
+
+    const ipfsResult = await getHashAndWriteAsync([{ key, value: suggestedNonce }]);
+    return res.json({ nonce: suggestedNonce, typeOfUser: "v2", ipfs: ipfsResult, newUser: true });
+  } catch (error) {
+    log.error("getOrSetNonce failed", error);
+    return res.status(500).json({ error: getError(error), success: false });
+  }
+});
+
 module.exports = router;
