@@ -276,4 +276,49 @@ router.post("/get_or_set_nonce", validationMiddleware(["pub_key_X", "pub_key_Y"]
   }
 });
 
+// Delete v2 nonce, this essentially convert the v2 (1/1) account to v1 (2/n) account, subsequent call to get_or_set_nonce will return v1
+router.post(
+  "/del_nonce",
+  validationMiddleware(["pub_key_X", "pub_key_Y", "signature"]),
+  validateMetadataInput,
+  validateSignature,
+  validateNamespace,
+  async (req, res) => {
+    try {
+      const { pub_key_X: pubKeyX, pub_key_Y: pubKeyY, tableName } = req.body;
+
+      // get v2 nonce value
+      const keyForNonce = constructKey(pubKeyX, pubKeyY, "noncev2");
+      const recordForNonce = await knexRead(tableName).where({ key: keyForNonce }).orderBy("created_at", "desc").orderBy("id", "desc").first();
+      const data = (recordForNonce && recordForNonce.value) || undefined;
+      if (!data) throw new Error("nonce not found");
+
+      // write nonce to v1
+      const key = constructKey(pubKeyX, pubKeyY, "");
+      await knexWrite(tableName).insert({
+        key,
+        value: data,
+      });
+      try {
+        await redis.setex(key, REDIS_TIMEOUT, data);
+      } catch (error) {
+        log.warn("redis set failed", error);
+      }
+
+      // (optional) delete v2 nonce
+      try {
+        await knexWrite(tableName).delete({ key: keyForNonce });
+      } catch (error) {
+        log.warn("knex delete failed", error);
+      }
+
+      const ipfsResult = await getHashAndWriteAsync([{ key, value: data }]);
+      return res.json({ ipfs: ipfsResult });
+    } catch (error) {
+      log.error("set metadata failed", error);
+      return res.status(500).json({ error: getError(error), success: false });
+    }
+  }
+);
+
 module.exports = router;
