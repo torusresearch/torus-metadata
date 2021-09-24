@@ -215,12 +215,7 @@ async function insertDataInBatchForTable(tableName, data) {
 // TODO: implement delete
 router.post("/get_or_set_nonce", validationMiddleware(["pub_key_X", "pub_key_Y"]), validateMetadataInput, validateNamespace, async (req, res) => {
   try {
-    const {
-      pub_key_X: pubKeyX,
-      pub_key_Y: pubKeyY,
-      set_data: { suggestedNonce },
-      tableName,
-    } = req.body;
+    const { pub_key_X: pubKeyX, pub_key_Y: pubKeyY, set_data: suggestedNonce, tableName } = req.body;
 
     const key = constructKey(pubKeyX, pubKeyY, "noncev2");
     const oldKey = constructKey(pubKeyX, pubKeyY, "");
