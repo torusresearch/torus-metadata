@@ -234,7 +234,7 @@ router.post("/get_or_set_nonce", validationMiddleware(["pub_key_X", "pub_key_Y"]
     }
 
     if (!oldValue) {
-      const oldRetrievedNonce = await knexRead(tableName).where({ oldKey }).orderBy("created_at", "desc").orderBy("id", "desc").first();
+      const oldRetrievedNonce = await knexRead(tableName).where({ key: oldKey }).orderBy("created_at", "desc").orderBy("id", "desc").first();
       // i want a nil value here
       oldValue = (oldRetrievedNonce && oldRetrievedNonce.value) || undefined;
     }
