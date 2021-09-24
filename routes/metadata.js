@@ -268,6 +268,7 @@ router.post("/get_or_set_nonce", validationMiddleware(["pub_key_X", "pub_key_Y"]
       log.warn("redis set failed", error);
     }
 
+    // TODO: Handle when frontend has unexpected error and can't handle the first API result with newUser=true, all subsequent calls will always return newUser=false
     const ipfsResult = await getHashAndWriteAsync([{ key, value: suggestedNonce }]);
     return res.json({ nonce: suggestedNonce, typeOfUser: "v2", ipfs: ipfsResult, newUser: true });
   } catch (error) {
