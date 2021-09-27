@@ -213,10 +213,9 @@ async function insertDataInBatchForTable(tableName, data) {
 
 // New nonce functions for v2
 // TODO: implement delete
-router.post("/get_or_set_nonce", validationMiddleware(["pub_key_X", "pub_key_Y"]), validateMetadataInput, validateNamespace, async (req, res) => {
+router.post("/get_or_set_nonce", validationMiddleware(["pub_key_X", "pub_key_Y"]), async (req, res) => {
   try {
-    const { pub_key_X: pubKeyX, pub_key_Y: pubKeyY, set_data: suggestedNonce, tableName } = req.body;
-
+    const { pub_key_X: pubKeyX, pub_key_Y: pubKeyY, set_data: suggestedNonce } = req.body;
     const key = constructKey(pubKeyX, pubKeyY, "noncev2");
     const oldKey = constructKey(pubKeyX, pubKeyY, "");
 
@@ -227,6 +226,9 @@ router.post("/get_or_set_nonce", validationMiddleware(["pub_key_X", "pub_key_Y"]
     } catch (error) {
       log.warn("redis get failed", error);
     }
+
+    // TODO: Do not hard code this, potentially use a different table for v2 keys
+    const tableName = "data";
 
     if (!oldValue) {
       const oldRetrievedNonce = await knexRead(tableName).where({ key: oldKey }).orderBy("created_at", "desc").orderBy("id", "desc").first();
