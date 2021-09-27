@@ -212,7 +212,6 @@ async function insertDataInBatchForTable(tableName, data) {
 }
 
 // New nonce functions for v2
-// TODO: implement delete
 router.post("/get_or_set_nonce", validationMiddleware(["pub_key_X", "pub_key_Y"]), async (req, res) => {
   try {
     const { pub_key_X: pubKeyX, pub_key_Y: pubKeyY, set_data: suggestedNonce } = req.body;
