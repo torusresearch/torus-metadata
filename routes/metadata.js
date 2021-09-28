@@ -218,6 +218,9 @@ router.post("/get_or_set_nonce", validationMiddleware(["pub_key_X", "pub_key_Y"]
     const key = constructKey(pubKeyX, pubKeyY, "noncev2");
     const oldKey = constructKey(pubKeyX, pubKeyY, "");
 
+    // TODO: Do not hard code this, potentially use a different table for v2 keys
+    const tableName = "data";
+
     // check if it already exists
     let oldValue;
     try {
@@ -225,9 +228,6 @@ router.post("/get_or_set_nonce", validationMiddleware(["pub_key_X", "pub_key_Y"]
     } catch (error) {
       log.warn("redis get failed", error);
     }
-
-    // TODO: Do not hard code this, potentially use a different table for v2 keys
-    const tableName = "data";
 
     if (!oldValue) {
       const oldRetrievedNonce = await knexRead(tableName).where({ key: oldKey }).orderBy("created_at", "desc").orderBy("id", "desc").first();
