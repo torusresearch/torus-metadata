@@ -211,7 +211,7 @@ async function insertDataInBatchForTable(tableName, data) {
   });
 }
 
-// New nonce functions for v2
+// new API for v2
 router.post("/get_or_set_nonce", validationMiddleware(["pub_key_X", "pub_key_Y"]), async (req, res) => {
   try {
     const { pub_key_X: pubKeyX, pub_key_Y: pubKeyY, set_data: suggestedNonce } = req.body;
@@ -277,34 +277,5 @@ router.post("/get_or_set_nonce", validationMiddleware(["pub_key_X", "pub_key_Y"]
     return res.status(500).json({ error: getError(error), success: false });
   }
 });
-
-router.post(
-  "/del_nonce",
-  validationMiddleware(["pub_key_X", "pub_key_Y", "signature"]),
-  validateMetadataInput,
-  validateSignature,
-  validateNamespace,
-  async (req, res) => {
-    try {
-      const { pub_key_X: pubKeyX, pub_key_Y: pubKeyY, tableName } = req.body;
-
-      const key = constructKey(pubKeyX, pubKeyY, "noncev2");
-      try {
-        await knexWrite(tableName).update({
-          key,
-          value: "<deleted>",
-        });
-        await redis.setex(key, REDIS_TIMEOUT, "<deleted>");
-      } catch (error) {
-        log.warn("update failed", error);
-      }
-
-      return res.json({});
-    } catch (error) {
-      log.error("set metadata failed", error);
-      return res.status(500).json({ error: getError(error), success: false });
-    }
-  }
-);
 
 module.exports = router;
