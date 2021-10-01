@@ -62,6 +62,11 @@ router.post(
         set_data: { data },
         tableName,
       } = req.body;
+
+      if (namespace === "noncev2") {
+        return res.status(400).json({ error: "noncev2 namespace is not allowed to be set", success: false });
+      }
+
       const key = constructKey(pubKeyX, pubKeyY, namespace);
       await knexWrite(tableName).insert({
         key,
