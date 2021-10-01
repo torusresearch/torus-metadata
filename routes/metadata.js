@@ -213,14 +213,12 @@ async function insertDataInBatchForTable(tableName, data) {
 }
 
 // new API for v2
-router.post("/get_or_set_nonce", validationMiddleware(["pub_key_X", "pub_key_Y"]), async (req, res) => {
+router.post("/get_or_set_nonce", validationMiddleware(["pub_key_X", "pub_key_Y"]), validateNamespace, async (req, res) => {
   try {
-    const { pub_key_X: pubKeyX, pub_key_Y: pubKeyY, set_data: suggestedNonce } = req.body;
-    const key = constructKey(pubKeyX, pubKeyY, "noncev2");
-    const oldKey = constructKey(pubKeyX, pubKeyY, "");
+    const { pub_key_X: pubKeyX, pub_key_Y: pubKeyY, set_data: suggestedNonce, namespace: oldNamespace, tableName } = req.body;
 
-    // TODO: Do not hard code this, potentially use a different table for v2 keys
-    const tableName = "data";
+    const key = constructKey(pubKeyX, pubKeyY, "noncev2");
+    const oldKey = constructKey(pubKeyX, pubKeyY, oldNamespace);
 
     // check if it already exists
     let oldValue;
