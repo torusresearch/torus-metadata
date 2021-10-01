@@ -2,6 +2,7 @@ const log = require("loglevel");
 const express = require("express");
 const pify = require("pify");
 const multer = require("multer");
+const { generatePrivate } = require("@toruslabs/eccrypto");
 
 const upload = multer({
   limits: { fieldSize: 30 * 1024 * 1024 },
@@ -257,21 +258,20 @@ router.post("/get_or_set_nonce", validationMiddleware(["pub_key_X", "pub_key_Y"]
     }
 
     // its a new v2 user, lets set his nonce
-    // TODO: allow random creation of nonce here
+    const nonce = suggestedNonce || generatePrivate();
     await knexWrite(tableName).insert({
       key,
-      value: suggestedNonce,
+      value: nonce,
     });
 
     try {
-      await redis.setex(key, REDIS_TIMEOUT, suggestedNonce);
+      await redis.setex(key, REDIS_TIMEOUT, nonce);
     } catch (error) {
       log.warn("redis set failed", error);
     }
 
-    // TODO: Handle when frontend has unexpected error and can't handle the first API result with newUser=true, all subsequent calls will always return newUser=false
-    const ipfsResult = await getHashAndWriteAsync([{ key, value: suggestedNonce }]);
-    return res.json({ nonce: suggestedNonce, typeOfUser: "v2", ipfs: ipfsResult, newUser: true });
+    const ipfsResult = await getHashAndWriteAsync([{ key, value: nonce }]);
+    return res.json({ nonce, typeOfUser: "v2", ipfs: ipfsResult, newUser: true });
   } catch (error) {
     log.error("getOrSetNonce failed", error);
     return res.status(500).json({ error: getError(error), success: false });
