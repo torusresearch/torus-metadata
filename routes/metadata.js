@@ -296,7 +296,7 @@ router.post(
       }
 
       const ipfsResult = await getHashAndWriteAsync([{ key, value: formattedPubNonce }]);
-      const returnResponse = { pub_nonce: formattedPubNonce, typeOfUser: "v2", ipfs: ipfsResult, newUser: true };
+      const returnResponse = { pubNonce: formattedPubNonce, typeOfUser: "v2", ipfs: ipfsResult, newUser: true };
       if (!res.locals.noValidSig) {
         // if theres a valid sig return nonce
         res.nonce = nonce;
