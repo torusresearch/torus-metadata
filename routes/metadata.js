@@ -28,7 +28,7 @@ const { validateMetadataInput, validateSignature } = require("../middleware");
 
 const router = express.Router();
 const redis = pify(redisClient);
-// 10 sec
+const reservedNamespaces = ["noncev2", "pub_noncev2"];
 
 router.post("/get", validationMiddleware(["pub_key_X", "pub_key_Y"]), validateNamespace, async (req, res) => {
   try {
@@ -68,8 +68,8 @@ router.post(
         tableName,
       } = req.body;
 
-      if (namespace === "noncev2") {
-        return res.status(400).json({ error: "noncev2 namespace is not allowed to be set", success: false });
+      if (reservedNamespaces.includes(namespace)) {
+        return res.status(400).json({ error: `${namespace} namespace is a reserved namespace`, success: false });
       }
 
       const key = constructKey(pubKeyX, pubKeyY, namespace);
