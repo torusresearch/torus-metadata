@@ -334,6 +334,8 @@ router.post(
         // if theres a valid sig return nonce
         returnResponse.nonce = nonce;
       }
+      if (nonce === "<deleted>") returnResponse.upgraded = true;
+
       return res.json(returnResponse);
     } catch (error) {
       log.error("getOrSetNonce failed", error);
