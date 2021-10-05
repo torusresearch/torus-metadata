@@ -277,6 +277,8 @@ router.post(
         nonce = (newRetrievedNonce && newRetrievedNonce.value) || undefined;
       }
 
+      if (nonce === "<v1>") return res.json({ typeOfUser: "v1" }); // This is a v1 user who didn't have a nonce before we rolled out v2, if he sets his nonce in the future, this value will be ignored
+
       if (nonce) {
         try {
           pubNonce = await redis.get(keyForPubNonce);
@@ -323,8 +325,6 @@ router.post(
         ]);
         ipfsResult = result;
       }
-
-      if (nonce === "<v1>") return res.json({ typeOfUser: "v1" }); // This is a v1 user who didn't have a nonce before we rolled out v2, if he sets his nonce in the future, this value will be ignored
 
       const returnResponse = { typeOfUser: "v2", pubNonce, ipfs: ipfsResult, newUser: true };
       if (
