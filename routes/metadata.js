@@ -227,6 +227,29 @@ async function insertDataInBatchForTable(tableName, data) {
   });
 }
 
+if (process.env.NODE_ENV === "development") {
+  router.post("/dev_set_nonce_to_v1", validationMiddleware(["pub_key_X", "pub_key_Y"]), validateNamespace, async (req, res) => {
+    try {
+      const { pub_key_X: pubKeyX, pub_key_Y: pubKeyY, tableName } = req.body;
+
+      const key = constructKey(pubKeyX, pubKeyY, NAMESPACES.nonceV2);
+
+      await Promise.all([
+        knexWrite(tableName).insert({
+          key,
+          value: "<v1>",
+        }),
+        redis.setex(key, REDIS_TIMEOUT, "<v1>").catch((error) => log.warn("redis set failed", error)),
+      ]);
+
+      return res.json({});
+    } catch (error) {
+      log.error("dev_set_nonce_to_v1 failed", error);
+      return res.status(500).json({ error: getError(error), success: false });
+    }
+  });
+}
+
 // new API for v2
 router.post(
   "/get_or_set_nonce",
@@ -235,6 +258,8 @@ router.post(
   validateGetOrSetNonceSignature,
   validateNamespace,
   async (req, res) => {
+    // TODO: Add a toggle to enable v2 account creation, before that create v1 account instead to avoid having users' key changed from v1 to v2 while we're doing migration
+
     try {
       const { pub_key_X: pubKeyX, pub_key_Y: pubKeyY, namespace: oldNamespace, tableName } = req.body;
 
