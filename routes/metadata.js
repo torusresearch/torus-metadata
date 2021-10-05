@@ -225,16 +225,14 @@ async function insertDataInBatchForTable(tableName, data) {
 // new API for v2
 router.post(
   "/get_or_set_nonce",
-  validationMiddleware(["pub_key_X", "pub_key_Y"]),
+  validationMiddleware(["pub_key_X", "pub_key_Y", "signature"]),
   validateGetOrSetNonceSetInput,
   validateGetOrSetNonceSignature,
   validateNamespace,
   async (req, res) => {
     try {
-      // TODO: don't allow editing of tablename actually AND namespace
       const { pub_key_X: pubKeyX, pub_key_Y: pubKeyY, namespace: oldNamespace, tableName } = req.body;
 
-      const key = constructKey(pubKeyX, pubKeyY, "noncev2");
       const oldKey = constructKey(pubKeyX, pubKeyY, oldNamespace);
 
       // check if it already exists
@@ -252,54 +250,84 @@ router.post(
       }
 
       if (oldValue) {
-        return res.json({ typeOfUser: "v1" });
+        return res.json({ typeOfUser: "v1", nonce: oldValue });
       }
 
+      const key = constructKey(pubKeyX, pubKeyY, "noncev2");
+      const keyForPubNonce = constructKey(pubKeyX, pubKeyY, "pub_noncev2");
+
       // if not check if v2 has been created before
-      let value;
+      let nonce;
+      let pubNonce;
+      let ipfsResult;
+
       try {
-        value = await redis.get(key);
+        nonce = await redis.get(key);
       } catch (error) {
         log.warn("redis get failed", error);
       }
 
-      if (!value) {
+      if (!nonce) {
         const newRetrievedNonce = await knexRead(tableName).where({ key }).orderBy("created_at", "desc").orderBy("id", "desc").first();
-        value = (newRetrievedNonce && newRetrievedNonce.value) || undefined;
+        nonce = (newRetrievedNonce && newRetrievedNonce.value) || undefined;
       }
 
-      if (value) {
-        return res.json({ nonce: value, typeOfUser: "v2", newUser: false });
+      if (nonce) {
+        try {
+          pubNonce = await redis.get(keyForPubNonce);
+        } catch (error) {
+          log.warn("redis get failed", error);
+        }
+
+        if (!pubNonce) {
+          const retrievedPubNonce = await knexRead(tableName)
+            .where({ key: keyForPubNonce })
+            .orderBy("created_at", "desc")
+            .orderBy("id", "desc")
+            .first();
+          pubNonce = retrievedPubNonce?.value;
+        }
+
+        if (!pubNonce) throw new Error("pub nonce value is null");
+        pubNonce = JSON.parse(pubNonce);
       }
 
       // its a new v2 user, lets set his nonce
-      const nonce = generatePrivate().toString("hex", 64);
-      await knexWrite(tableName).insert({
-        key,
-        value: nonce,
-      });
-      // we also set g^nonce
-      const pubNonce = elliptic.keyFromPrivate(nonce).getPublic();
-      const formattedPubNonce = {
-        x: pubNonce.getX().toString("hex"),
-        y: pubNonce.getY().toString("hex"),
-      };
-      await knexWrite("pub_nonce_v2").insert({
-        key,
-        value: formattedPubNonce,
-      });
+      if (!nonce) {
+        nonce = generatePrivate().toString("hex");
 
-      try {
-        await redis.setex(key, REDIS_TIMEOUT, nonce);
-      } catch (error) {
-        log.warn("redis set failed", error);
+        const unformattedPubNonce = elliptic.keyFromPrivate(nonce).getPublic();
+        pubNonce = {
+          x: unformattedPubNonce.getX().toString("hex"),
+          y: unformattedPubNonce.getY().toString("hex"),
+        };
+
+        // We just created new nonce and pub nonce above, write to db
+        const [result] = await Promise.all([
+          getHashAndWriteAsync([{ key, value: pubNonce }]),
+          knexWrite(tableName).insert({
+            key,
+            value: nonce,
+          }),
+          knexWrite(tableName).insert({
+            key: keyForPubNonce,
+            value: JSON.stringify(pubNonce),
+          }),
+          redis.setex(key, REDIS_TIMEOUT, nonce).catch((error) => log.warn("redis set failed", error)),
+          redis.setex(keyForPubNonce, REDIS_TIMEOUT, pubNonce).catch((error) => log.warn("redis set failed", error)),
+        ]);
+        ipfsResult = result;
       }
 
-      const ipfsResult = await getHashAndWriteAsync([{ key, value: formattedPubNonce }]);
-      const returnResponse = { pubNonce: formattedPubNonce, typeOfUser: "v2", ipfs: ipfsResult, newUser: true };
-      if (!res.locals.noValidSig) {
+      if (nonce === "<v1>") return res.json({ typeOfUser: "v1" }); // This is a v1 user who didn't have a nonce before we rolled out v2, if he sets his nonce in the future, this value will be ignored
+
+      const returnResponse = { typeOfUser: "v2", pubNonce, ipfs: ipfsResult, newUser: true };
+      if (
+        nonce !== "<deleted>" && // This user has upgraded from 1/1 to 2/n
+        !res.locals.noValidSig
+      ) {
         // if theres a valid sig return nonce
-        res.nonce = nonce;
+        returnResponse.nonce = nonce;
       }
       return res.json(returnResponse);
     } catch (error) {

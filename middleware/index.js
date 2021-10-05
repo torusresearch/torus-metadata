@@ -207,7 +207,7 @@ function validV2InputWithSig(body) {
 }
 
 exports.validateGetOrSetNonceSetInput = async (req, res, next) => {
-  if (!validV2InputWithSig) {
+  if (!validV2InputWithSig(req.body)) {
     res.locals.noValidSig = true;
     return next();
   }
@@ -230,7 +230,7 @@ exports.validateGetOrSetNonceSetInput = async (req, res, next) => {
 };
 
 exports.validateGetOrSetNonceSignature = async (req, res, next) => {
-  if (!validV2InputWithSig) {
+  if (!validV2InputWithSig(req.body)) {
     res.locals.noValidSig = true;
     return next();
   }
