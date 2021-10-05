@@ -28,7 +28,12 @@ const { validateMetadataInput, validateSignature } = require("../middleware");
 
 const router = express.Router();
 const redis = pify(redisClient);
-const reservedNamespaces = ["noncev2", "pub_noncev2"];
+
+const NAMESPACES = {
+  nonceV2: "noncev2",
+  pubNonceV2: "pub_noncev2",
+};
+const RESERVED_NAMESPACES = [NAMESPACES.nonceV2, NAMESPACES.pubNonceV2];
 
 router.post("/get", validationMiddleware(["pub_key_X", "pub_key_Y"]), validateNamespace, async (req, res) => {
   try {
@@ -68,7 +73,7 @@ router.post(
         tableName,
       } = req.body;
 
-      if (reservedNamespaces.includes(namespace)) {
+      if (RESERVED_NAMESPACES.includes(namespace)) {
         return res.status(400).json({ error: `${namespace} namespace is a reserved namespace`, success: false });
       }
 
@@ -253,8 +258,8 @@ router.post(
         return res.json({ typeOfUser: "v1", nonce: oldValue });
       }
 
-      const key = constructKey(pubKeyX, pubKeyY, "noncev2");
-      const keyForPubNonce = constructKey(pubKeyX, pubKeyY, "pub_noncev2");
+      const key = constructKey(pubKeyX, pubKeyY, NAMESPACES.nonceV2);
+      const keyForPubNonce = constructKey(pubKeyX, pubKeyY, NAMESPACES.pubNonceV2);
 
       // if not check if v2 has been created before
       let nonce;
