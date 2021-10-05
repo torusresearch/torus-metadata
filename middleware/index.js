@@ -197,3 +197,60 @@ exports.serializeStreamBody = (req, res, next) => {
     return res.status(500).json({ error: getError(error), status: 0 });
   }
 };
+
+// V2 Validation Functions
+function validV2InputWithSig(body) {
+  if ("set_data" in body && "pub_key_X" in body && "pub_key_Y" in body && "signature" in body) {
+    return true;
+  }
+  return false;
+}
+
+exports.validateGetOrSetNonceSetInput = async (req, res, next) => {
+  if (!validV2InputWithSig) {
+    res.locals.noValidSig = true;
+    return next();
+  }
+  const { set_data: setData = {} } = req.body;
+  const { errors, isValid } = validateInput(setData, ["data", "timestamp"]);
+  if (!isValid) {
+    return res.status(400).json({ error: errors, success: false });
+  }
+  const { timestamp, data } = setData;
+  if (data !== "getOrSetNonce") {
+    errors.data = "Should be equal to 'getOrSetNonce'";
+    return res.status(403).json({ error: errors, success: false });
+  }
+  const timeParsed = parseInt(timestamp, 16);
+  if (~~(Date.now() / 1000) - timeParsed > 60) {
+    errors.timestamp = "Message has been signed more than 60s ago";
+    return res.status(403).json({ error: errors, success: false });
+  }
+  return next();
+};
+
+exports.validateGetOrSetNonceSignature = async (req, res, next) => {
+  if (!validV2InputWithSig) {
+    res.locals.noValidSig = true;
+    return next();
+  }
+  try {
+    const { pub_key_X: pubKeyX, pub_key_Y: pubKeyY, signature, set_data: setData } = req.body;
+    const pubKey = elliptic.keyFromPublic({ x: pubKeyX, y: pubKeyY }, "hex");
+    const decodedSignature = Buffer.from(signature, "base64").toString("hex");
+    const ecSignature = {
+      r: Buffer.from(decodedSignature.substring(0, 64), "hex"),
+      s: Buffer.from(decodedSignature.substring(64, 128), "hex"),
+    };
+    const isValidSignature = elliptic.verify(keccak256(stringify(setData)), ecSignature, pubKey);
+    if (!isValidSignature) {
+      const errors = {};
+      errors.signature = "Invalid signature";
+      return res.status(403).json({ error: errors, success: false });
+    }
+    return next();
+  } catch (error) {
+    log.error("signature verification failed", error);
+    return res.status(500).json({ error: getError(error), success: false });
+  }
+};
