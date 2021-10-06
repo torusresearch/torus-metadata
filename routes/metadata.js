@@ -228,7 +228,8 @@ async function insertDataInBatchForTable(tableName, data) {
 }
 
 if (process.env.NODE_ENV === "development") {
-  router.post("/dev_set_nonce_to_v1", validationMiddleware(["pub_key_X", "pub_key_Y"]), validateNamespace, async (req, res) => {
+  // API for dev env only to test if v1 continue to work after deploying v2
+  router.post("/set_nonce", validationMiddleware(["pub_key_X", "pub_key_Y"]), validateNamespace, async (req, res) => {
     try {
       const { pub_key_X: pubKeyX, pub_key_Y: pubKeyY, tableName } = req.body;
 
@@ -244,7 +245,7 @@ if (process.env.NODE_ENV === "development") {
 
       return res.json({});
     } catch (error) {
-      log.error("dev_set_nonce_to_v1 failed", error);
+      log.error("set_nonce failed", error);
       return res.status(500).json({ error: getError(error), success: false });
     }
   });
