@@ -336,20 +336,19 @@ router.post(
         };
 
         // We just created new nonce and pub nonce above, write to db
-        const [result] = await Promise.all([
-          getHashAndWriteAsync([{ key, value: pubNonce }]),
-          knexWrite(tableName).insert({
-            key,
-            value: nonce,
-          }),
-          knexWrite(tableName).insert({
-            key: keyForPubNonce,
-            value: JSON.stringify(pubNonce),
-          }),
-          redis.setex(key, REDIS_TIMEOUT, nonce).catch((error) => log.warn("redis set failed", error)),
-          redis.setex(keyForPubNonce, REDIS_TIMEOUT, pubNonce).catch((error) => log.warn("redis set failed", error)),
+        const pubNonceStr = JSON.stringify(pubNonce);
+        await insertDataInBatchForTable(tableName, [
+          [
+            { key, value: nonce },
+            { key: keyForPubNonce, value: pubNonceStr },
+          ],
         ]);
-        ipfsResult = result;
+        const [ipfs] = await Promise.all([
+          getHashAndWriteAsync([{ key, value: pubNonce }]),
+          redis.setex(key, REDIS_TIMEOUT, nonce).catch((error) => log.warn("redis set failed", error)),
+          redis.setex(keyForPubNonce, REDIS_TIMEOUT, pubNonceStr).catch((error) => log.warn("redis set failed", error)),
+        ]);
+        ipfsResult = ipfs;
       }
 
       const returnResponse = { typeOfUser: "v2", pubNonce, ipfs: ipfsResult, newUser: true };
