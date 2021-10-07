@@ -353,7 +353,13 @@ router.post(
         ipfsResult = ipfs;
       }
 
-      const returnResponse = { typeOfUser: "v2", pubNonce, ipfs: ipfsResult, newUser: true };
+      const returnResponse = {
+        typeOfUser: "v2",
+        pubNonce,
+        ipfs: ipfsResult,
+        // TODO: We don't need new user here, this is only useful for rule engine, which will be implemented in OpenLogin backend
+        newUser: true,
+      };
       if (
         nonce !== "<deleted>" && // This user has upgraded from 1/1 to 2/n
         !res.locals.noValidSig
