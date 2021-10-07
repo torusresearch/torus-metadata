@@ -263,6 +263,7 @@ router.post(
   validateNamespace,
   async (req, res) => {
     // TODO: When first deploying v2 (during migration), this endpoint should behave like `/get` (v1) to avoid new v1 users to get stuck
+    // TODO: Add migration script to set noncev2 for all existing users to "<v1>"
     try {
       const { pub_key_X: pubKeyX, pub_key_Y: pubKeyY, namespace: oldNamespace, tableName } = req.body;
 
