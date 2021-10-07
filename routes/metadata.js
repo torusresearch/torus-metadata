@@ -235,13 +235,16 @@ if (process.env.NODE_ENV === "development") {
 
       const key = constructKey(pubKeyX, pubKeyY, NAMESPACES.nonceV2);
 
-      await Promise.all([
-        knexWrite(tableName).insert({
-          key,
-          value: "<v1>",
-        }),
-        redis.setex(key, REDIS_TIMEOUT, "<v1>").catch((error) => log.warn("redis set failed", error)),
-      ]);
+      await knexWrite(tableName).insert({
+        key,
+        value: "<v1>",
+      });
+
+      try {
+        await redis.setex(key, REDIS_TIMEOUT, "<v1>");
+      } catch (error) {
+        log.warn("redis set failed", error);
+      }
 
       return res.json({});
     } catch (error) {
