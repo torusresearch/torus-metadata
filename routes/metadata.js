@@ -257,13 +257,12 @@ if (process.env.NODE_ENV === "development") {
 // new API for v2
 router.post(
   "/get_or_set_nonce",
-  validationMiddleware(["pub_key_X", "pub_key_Y", "signature"]),
+  validationMiddleware(["pub_key_X", "pub_key_Y"]),
   validateGetOrSetNonceSetInput,
   validateGetOrSetNonceSignature,
   validateNamespace,
   async (req, res) => {
-    // TODO: Add a toggle to enable v2 account creation, before that create v1 account instead to avoid having users' key changed from v1 to v2 while we're doing migration
-
+    // TODO: When first deploying v2 (during migration), this endpoint should behave like `/get` (v1) to avoid new v1 users to get stuck
     try {
       const { pub_key_X: pubKeyX, pub_key_Y: pubKeyY, namespace: oldNamespace, tableName } = req.body;
 
