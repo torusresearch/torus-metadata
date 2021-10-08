@@ -283,6 +283,13 @@ router.post(
         oldValue = (oldRetrievedNonce && oldRetrievedNonce.value) || undefined;
       }
 
+      if (!process.env.V2) {
+        // Delay deploying v2 until all existing v1 accounts are flagged with "<v1>"
+        if (!oldValue) {
+          return res.json({ typeOfUser: "v1", nonce: "0" });
+        }
+      }
+
       if (oldValue) {
         return res.json({ typeOfUser: "v1", nonce: oldValue });
       }
