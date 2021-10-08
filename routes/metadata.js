@@ -355,17 +355,14 @@ router.post(
 
       const returnResponse = {
         typeOfUser: "v2",
+        upgraded: nonce === "<deleted>",
         pubNonce,
         ipfs,
       };
-      if (
-        nonce !== "<deleted>" && // This user has upgraded from 1/1 to 2/n
-        !res.locals.noValidSig
-      ) {
-        // if theres a valid sig return nonce
+      if (!returnResponse.upgraded && !res.locals.noValidSig) {
+        // if account is 1/1 and there's a valid sig, return nonce
         returnResponse.nonce = nonce;
       }
-      if (nonce === "<deleted>") returnResponse.upgraded = true;
       return res.json(returnResponse);
     } catch (error) {
       log.error("getOrSetNonce failed", error);
