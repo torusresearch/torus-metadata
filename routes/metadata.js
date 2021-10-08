@@ -293,7 +293,7 @@ router.post(
       // if not check if v2 has been created before
       let nonce;
       let pubNonce;
-      let ipfsResult;
+      let ipfs;
 
       try {
         nonce = await redis.get(key);
@@ -346,20 +346,17 @@ router.post(
             { key: keyForPubNonce, value: pubNonceStr },
           ],
         ]);
-        const [ipfs] = await Promise.all([
+        [ipfs] = await Promise.all([
           getHashAndWriteAsync([{ key, value: pubNonce }]),
           redis.setex(key, REDIS_TIMEOUT, nonce).catch((error) => log.warn("redis set failed", error)),
           redis.setex(keyForPubNonce, REDIS_TIMEOUT, pubNonceStr).catch((error) => log.warn("redis set failed", error)),
         ]);
-        ipfsResult = ipfs;
       }
 
       const returnResponse = {
         typeOfUser: "v2",
         pubNonce,
-        ipfs: ipfsResult,
-        // TODO: We don't need new user here, this is only useful for rule engine, which will be implemented in OpenLogin backend
-        newUser: true,
+        ipfs,
       };
       if (
         nonce !== "<deleted>" && // This user has upgraded from 1/1 to 2/n
@@ -369,7 +366,6 @@ router.post(
         returnResponse.nonce = nonce;
       }
       if (nonce === "<deleted>") returnResponse.upgraded = true;
-
       return res.json(returnResponse);
     } catch (error) {
       log.error("getOrSetNonce failed", error);
