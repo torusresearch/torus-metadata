@@ -217,8 +217,8 @@ exports.validateGetOrSetNonceSetInput = async (req, res, next) => {
     return res.status(400).json({ error: errors, success: false });
   }
   const { timestamp, data } = setData;
-  if (data !== "getOrSetNonce") {
-    errors.data = "Should be equal to 'getOrSetNonce'";
+  if (!["getOrSetNonce", "getNonce"].includes(data)) {
+    errors.data = "Should be equal to 'getOrSetNonce' or 'getNonce'";
     return res.status(403).json({ error: errors, success: false });
   }
   const timeParsed = parseInt(timestamp, 16);

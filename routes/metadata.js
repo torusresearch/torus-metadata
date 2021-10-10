@@ -265,7 +265,13 @@ router.post(
     // TODO: When first deploying v2 (during migration), this endpoint should behave like `/get` (v1) to avoid new v1 users to get stuck
     // TODO: Add migration script to set noncev2 for all existing users to "<v1>"
     try {
-      const { pub_key_X: pubKeyX, pub_key_Y: pubKeyY, namespace: oldNamespace, tableName } = req.body;
+      const {
+        pub_key_X: pubKeyX,
+        pub_key_Y: pubKeyY,
+        set_data: { data },
+        namespace: oldNamespace,
+        tableName,
+      } = req.body;
 
       const oldKey = constructKey(pubKeyX, pubKeyY, oldNamespace);
 
@@ -306,7 +312,7 @@ router.post(
         nonce = (newRetrievedNonce && newRetrievedNonce.value) || undefined;
       }
 
-      if (nonce === "<v1>") return res.json({ typeOfUser: "v1" }); // This is a v1 user who didn't have a nonce before we rolled out v2, if he sets his nonce in the future, this value will be ignored
+      if (nonce === "<v1>" || (!nonce && data !== "getOrSetNonce")) return res.json({ typeOfUser: "v1" }); // This is a v1 user who didn't have a nonce before we rolled out v2, if he sets his nonce in the future, this value will be ignored
 
       if (nonce) {
         try {
