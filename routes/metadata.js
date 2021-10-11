@@ -254,7 +254,6 @@ if (process.env.NODE_ENV === "development") {
   });
 }
 
-// new API for v2
 router.post(
   "/get_or_set_nonce",
   validationMiddleware(["pub_key_X", "pub_key_Y"]),
