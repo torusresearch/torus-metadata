@@ -21,7 +21,6 @@ http.keepAliveTimeout = 301 * 1000;
 http.headersTimeout = 305 * 1000;
 
 const io = SocketIO(http, {
-  transports: ["websocket"],
   cors: {
     credentials: true,
     origin: true,
