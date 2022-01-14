@@ -2,11 +2,13 @@ const express = require("express");
 const helmet = require("helmet");
 const cors = require("cors");
 const morgan = require("morgan");
-const socketRedis = require("socket.io-redis");
+const { createAdapter } = require("@socket.io/redis-adapter");
 const log = require("loglevel");
 const HttpServer = require("http");
 const SocketIO = require("socket.io");
 const compression = require("compression");
+const redis = require("redis");
+
 // Setup environment
 require("dotenv").config();
 
@@ -28,11 +30,22 @@ const io = SocketIO(http, {
   },
 });
 
-io.adapter(socketRedis({ host: process.env.REDIS_HOSTNAME, port: process.env.REDIS_PORT }));
-
 io.on("connection", () => {
   log.debug("connected");
 });
+const { REDIS_PORT, REDIS_HOSTNAME } = process.env;
+
+const pubClient = redis.createClient({ socket: { host: REDIS_HOSTNAME, port: Number(REDIS_PORT) } });
+const subClient = pubClient.duplicate();
+
+Promise.all([pubClient.connect(), subClient.connect()])
+  .then(() => {
+    io.adapter(createAdapter(pubClient, subClient));
+    log.debug("connected socket to redis");
+  })
+  .catch((err) => {
+    log.error("redis connection failed", err);
+  });
 
 log.enableAll();
 
