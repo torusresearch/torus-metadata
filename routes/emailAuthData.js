@@ -1,13 +1,10 @@
 const log = require("loglevel");
 const express = require("express");
-
-const pify = require("pify");
 const { getError } = require("../utils");
 const { validationMiddleware } = require("../middleware");
-const { redisClient } = require("../database");
+const { redisClient: redis } = require("../database");
 
 const router = express.Router();
-const redis = pify(redisClient);
 const REDIS_TIMEOUT = 300; // 5m
 const REDIS_NAME_SPACE = "EMAIL_AUTH_DATA";
 module.exports = (io) => {
@@ -44,7 +41,7 @@ module.exports = (io) => {
         instancePubKey,
         encAuthData,
       };
-      await redis.setex(key, REDIS_TIMEOUT, JSON.stringify(data));
+      await redis.setEx(key, REDIS_TIMEOUT, JSON.stringify(data));
 
       io.to(instancePubKey).emit("success", JSON.parse(encAuthData));
 

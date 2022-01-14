@@ -1,6 +1,5 @@
 const log = require("loglevel");
 const express = require("express");
-const pify = require("pify");
 const multer = require("multer");
 const { generatePrivate } = require("@toruslabs/eccrypto");
 const { ec: EC } = require("elliptic");
@@ -23,11 +22,10 @@ const {
   validateGetOrSetNonceSetInput,
   validateGetOrSetNonceSignature,
 } = require("../middleware");
-const { knexRead, knexWrite, redisClient, getHashAndWriteAsync } = require("../database");
+const { knexRead, knexWrite, redisClient: redis, getHashAndWriteAsync } = require("../database");
 const { validateMetadataInput, validateSignature } = require("../middleware");
 
 const router = express.Router();
-const redis = pify(redisClient);
 
 const NAMESPACES = {
   nonceV2: "noncev2",
@@ -84,7 +82,7 @@ router.post(
       });
 
       try {
-        await redis.setex(key, REDIS_TIMEOUT, data);
+        await redis.setEx(key, REDIS_TIMEOUT, data);
       } catch (error) {
         log.warn("redis set failed", error);
       }
@@ -135,7 +133,7 @@ router.post(
       }, {});
 
       try {
-        await Promise.all(Object.keys(redisData).map((x) => redis.setex(x, REDIS_TIMEOUT, redisData[x])));
+        await Promise.all(Object.keys(redisData).map((x) => redis.setEx(x, REDIS_TIMEOUT, redisData[x])));
       } catch (error) {
         log.warn("redis bulk set failed", error);
       }
@@ -197,7 +195,7 @@ router.post(
       await Promise.all(Object.keys(totalBatchesPerTable).map((x) => insertDataInBatchForTable(x, totalBatchesPerTable[x])));
 
       try {
-        await Promise.all(Object.keys(redisData).map((x) => redis.setex(x, REDIS_TIMEOUT, redisData[x])));
+        await Promise.all(Object.keys(redisData).map((x) => redis.setEx(x, REDIS_TIMEOUT, redisData[x])));
       } catch (error) {
         log.warn("redis bulk set failed", error);
       }
@@ -241,7 +239,7 @@ if (process.env.NODE_ENV === "development") {
       });
 
       try {
-        await redis.setex(key, REDIS_TIMEOUT, "<v1>");
+        await redis.setEx(key, REDIS_TIMEOUT, "<v1>");
       } catch (error) {
         log.warn("redis set failed", error);
       }
@@ -351,8 +349,8 @@ router.post(
         ]);
         [ipfs] = await Promise.all([
           getHashAndWriteAsync([{ key, value: pubNonce }]),
-          redis.setex(key, REDIS_TIMEOUT, nonce).catch((error) => log.warn("redis set failed", error)),
-          redis.setex(keyForPubNonce, REDIS_TIMEOUT, pubNonceStr).catch((error) => log.warn("redis set failed", error)),
+          redis.setEx(key, REDIS_TIMEOUT, nonce).catch((error) => log.warn("redis set failed", error)),
+          redis.setEx(keyForPubNonce, REDIS_TIMEOUT, pubNonceStr).catch((error) => log.warn("redis set failed", error)),
         ]);
       }
 
