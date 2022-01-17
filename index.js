@@ -22,7 +22,8 @@ registerSentry(app);
 http.keepAliveTimeout = 301 * 1000;
 http.headersTimeout = 305 * 1000;
 
-const io = SocketIO(http, {
+const socket = SocketIO(http, {
+  transports: ["websocket", "polling"], // use WebSocket first, if available
   cors: {
     credentials: true,
     origin: true,
@@ -30,7 +31,7 @@ const io = SocketIO(http, {
   },
 });
 
-io.on("connection", () => {
+socket.on("connection", () => {
   log.debug("connected");
 });
 const { REDIS_PORT, REDIS_HOSTNAME } = process.env;
@@ -40,7 +41,7 @@ const subClient = pubClient.duplicate();
 
 Promise.all([pubClient.connect(), subClient.connect()])
   .then(() => {
-    io.adapter(createAdapter(pubClient, subClient));
+    socket.adapter(createAdapter(pubClient, subClient));
     log.debug("connected socket to redis");
   })
   .catch((err) => {
@@ -69,7 +70,7 @@ app.use(express.urlencoded({ extended: false, limit: "20mb" })); // middleware w
 app.use(express.json({ limit: "20mb" })); // converts body to json
 
 // bring all routes here
-const routes = require("./routes")(io);
+const routes = require("./routes")(socket);
 
 app.use("/", routes);
 
