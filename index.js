@@ -2,15 +2,17 @@ const express = require("express");
 const helmet = require("helmet");
 const cors = require("cors");
 const morgan = require("morgan");
-const socketRedis = require("socket.io-redis");
+const { createAdapter } = require("@socket.io/redis-adapter");
 const log = require("loglevel");
 const HttpServer = require("http");
 const SocketIO = require("socket.io");
 const compression = require("compression");
+
 // Setup environment
 require("dotenv").config();
 
 const { registerSentry, registerSentryErrorHandler } = require("./utils/sentry");
+const { redisClient } = require("./database");
 // setup app
 const app = express();
 const http = HttpServer.Server(app);
@@ -20,7 +22,8 @@ registerSentry(app);
 http.keepAliveTimeout = 301 * 1000;
 http.headersTimeout = 305 * 1000;
 
-const io = SocketIO(http, {
+const socket = SocketIO(http, {
+  transports: ["websocket", "polling"], // use WebSocket first, if available
   cors: {
     credentials: true,
     origin: true,
@@ -28,11 +31,20 @@ const io = SocketIO(http, {
   },
 });
 
-io.adapter(socketRedis({ host: process.env.REDIS_HOSTNAME, port: process.env.REDIS_PORT }));
-
-io.on("connection", () => {
+socket.on("connection", () => {
   log.debug("connected");
 });
+
+const subClient = redisClient.duplicate();
+
+Promise.all([redisClient.connect(), subClient.connect()])
+  .then(() => {
+    socket.adapter(createAdapter(redisClient, subClient));
+    log.debug("connected socket to redis");
+  })
+  .catch((err) => {
+    log.error("redis connection failed", err);
+  });
 
 log.enableAll();
 
@@ -56,7 +68,7 @@ app.use(express.urlencoded({ extended: false, limit: "20mb" })); // middleware w
 app.use(express.json({ limit: "20mb" })); // converts body to json
 
 // bring all routes here
-const routes = require("./routes")(io);
+const routes = require("./routes")(socket);
 
 app.use("/", routes);
 

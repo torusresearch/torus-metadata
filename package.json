@@ -43,7 +43,7 @@
     "mysql": "^2.18.1",
     "redis": "^4.0.2",
     "socket.io": "^4.4.1",
-    "socket.io-redis": "^6.1.1"
+    "@socket.io/redis-adapter": "^7.1.0"
   },
   "devDependencies": {
     "@tkey/storage-layer-torus": "^5.0.0",
