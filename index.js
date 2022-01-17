@@ -7,12 +7,12 @@ const log = require("loglevel");
 const HttpServer = require("http");
 const SocketIO = require("socket.io");
 const compression = require("compression");
-const redis = require("redis");
 
 // Setup environment
 require("dotenv").config();
 
 const { registerSentry, registerSentryErrorHandler } = require("./utils/sentry");
+const { redisClient } = require("./database");
 // setup app
 const app = express();
 const http = HttpServer.Server(app);
@@ -34,14 +34,12 @@ const socket = SocketIO(http, {
 socket.on("connection", () => {
   log.debug("connected");
 });
-const { REDIS_PORT, REDIS_HOSTNAME } = process.env;
 
-const pubClient = redis.createClient({ socket: { host: REDIS_HOSTNAME, port: Number(REDIS_PORT) } });
-const subClient = pubClient.duplicate();
+const subClient = redisClient.duplicate();
 
-Promise.all([pubClient.connect(), subClient.connect()])
+Promise.all([redisClient.connect(), subClient.connect()])
   .then(() => {
-    socket.adapter(createAdapter(pubClient, subClient));
+    socket.adapter(createAdapter(redisClient, subClient));
     log.debug("connected socket to redis");
   })
   .catch((err) => {

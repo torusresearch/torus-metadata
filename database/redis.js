@@ -12,5 +12,4 @@ client.on("ready", () => {
   log.info("Connected to redis");
 });
 
-client.connect();
 module.exports = client;
