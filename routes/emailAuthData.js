@@ -18,7 +18,8 @@ module.exports = (io) => {
         // will close the connection.
         const data = await redis.get(key);
         if (data) {
-          socket.emit("success", JSON.parse(data.encAuthData || "{}"));
+          const parsedData = JSON.parse(data || "{}");
+          socket.emit("success", parsedData.encAuthData || {});
         } else {
           socket.join(instancePubKey);
         }
