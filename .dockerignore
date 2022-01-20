@@ -54,7 +54,6 @@ documentation/
 .env
 .eslintignore
 .eslintrc.json
-.mocharc.json
 .prettierignore
 .prettierrc.yaml
 Dockerfile.dev

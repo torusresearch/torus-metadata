@@ -61,10 +61,11 @@ typings/
 .next
 serverless.env.yml
 
-#keys
-*.key
-*.key.pub
-
 #Documentation
 documentation/
-prometheus/
+
+#pnpm
+pnpm-lock.yaml
+
+#local pre-commit-hooks
+.husky

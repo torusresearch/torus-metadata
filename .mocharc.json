@@ -1,5 +1,7 @@
 {
-  "require": ["./test/setup.js"],
+  "require": ["ts-node/register"],
+  "spec": "./sr/test/api.ts",
+  "extension": ["js", "ts"],
   "timeout": 0,
   "exit": true
 }
