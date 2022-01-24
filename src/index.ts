@@ -1,16 +1,20 @@
+import { createAdapter } from "@socket.io/redis-adapter";
 import { errors } from "celebrate";
 import compression from "compression";
 import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
 import helmet from "helmet";
-import { Server } from "http";
+import { createServer } from "http";
 import log from "loglevel";
 import morgan from "morgan";
 import path from "path";
+import { Server } from "socket.io";
 
+import redis from "./database/redis";
 // bring all routes here
 import routes from "./routes";
+import { registerSentry, registerSentryErrorHandler } from "./utils/sentry";
 const envPath = path.resolve(".", process.env.NODE_ENV !== "production" ? ".env.development" : ".env");
 
 // setup environment
@@ -19,10 +23,36 @@ dotenv.config({
 });
 
 const app = express();
-const http = new Server(app);
+const http = createServer(app);
+registerSentry(app);
 
 http.keepAliveTimeout = 301 * 1000;
 http.headersTimeout = 305 * 1000;
+
+const socket = new Server(http, {
+  transports: ["websocket", "polling"],
+  cors: {
+    credentials: true,
+    origin: true,
+    methods: ["GET", "POST"],
+  },
+});
+
+socket.on("connection", () => {
+  log.debug("connected");
+});
+
+const subClient = redis.duplicate();
+
+Promise.all([redis.connect(), subClient.connect()])
+  .then(() => {
+    socket.adapter(createAdapter(redis, subClient));
+    log.debug("connected socket to redis");
+    return null;
+  })
+  .catch((err) => {
+    log.error("redis connection failed", err);
+  });
 
 log.enableAll();
 
@@ -45,8 +75,10 @@ app.use(helmet()); // middleware which adds http headers
 app.use(express.urlencoded({ extended: false, limit: "20mb" })); // middleware which parses body
 app.use(express.json({ limit: "20mb" })); // converts body to json
 
-app.use("/", routes());
+app.use("/", routes(socket));
 app.use(errors());
+
+registerSentryErrorHandler(app);
 
 const port = process.env.PORT || 5051;
 http.listen(port, () => log.info(`Server running on port: ${port}`));

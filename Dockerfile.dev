@@ -14,4 +14,4 @@ RUN apk add --no-cache --virtual .gyp \
 
 COPY . .
 
-CMD npm run serve
+CMD npm run migrate && npm run serve
