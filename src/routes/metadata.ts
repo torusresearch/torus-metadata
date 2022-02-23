@@ -34,7 +34,7 @@ router.post("/get", validationMiddleware(["pub_key_X", "pub_key_Y"]), validateNa
   try {
     const { namespace, pub_key_X: pubKeyX, pub_key_Y: pubKeyY, tableName } = req.body;
     const key = constructKey(pubKeyX, pubKeyY, namespace);
-    let value;
+    let value: string;
     try {
       value = await redis.get(key);
     } catch (error) {

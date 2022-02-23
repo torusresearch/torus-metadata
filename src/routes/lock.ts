@@ -15,7 +15,7 @@ const router = express.Router();
 router.get("/acquireLock", validateLockData, async (req: Request, res: Response) => {
   const { key: pubKey } = req.body;
   try {
-    let value;
+    let value: string;
     try {
       value = await redis.get(pubKey);
     } catch (error) {
@@ -42,7 +42,7 @@ router.get("/releaseLock", async (req: Request, res: Response) => {
   try {
     const { key, id } = req.body;
 
-    let value;
+    let value: string;
     try {
       value = await redis.get(key);
     } catch (error) {
@@ -51,7 +51,7 @@ router.get("/releaseLock", async (req: Request, res: Response) => {
 
     if (!value) {
       // No lock exists
-      // Redis_timeout autoclear or no lock was ever created
+      // Redis_timeout auto clear or no lock was ever created
       return res.json({ status: 0 });
     }
     if (value === id) {

@@ -9,9 +9,7 @@
   },
   "env": {
     "es2020": true,
-    "browser": true,
-    "node": true,
-    "serviceworker": true
+    "node": true
   },
   "rules": {
     "camelcase": 0

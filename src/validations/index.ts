@@ -1,10 +1,11 @@
-export const isEmpty = (value) =>
+/* eslint-disable security/detect-object-injection */
+export const isEmpty = (value: unknown) =>
   value === undefined ||
   value === null ||
   (typeof value === "object" && Object.keys(value).length === 0) ||
   (typeof value === "string" && value.trim().length === 0);
 
-export const validateInput = (data, fieldNames) => {
+export const validateInput = (data: Record<string, string>, fieldNames: string[]) => {
   const errors = {};
   for (let index = 0; index < fieldNames.length; index += 1) {
     const fieldName = fieldNames[index];

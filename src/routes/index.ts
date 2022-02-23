@@ -1,18 +1,12 @@
 import express from "express";
 
 import defaultRoute from "./default";
-import emailAuthData from "./emailAuthData";
+import emailAuthDataRoute from "./emailAuthData";
 import lockRoute from "./lock";
 
-const final = (io) => {
-  const router = express.Router();
-  const emailAuthDataRoute = emailAuthData(io);
+const router = express.Router();
+router.use("/", defaultRoute);
+router.use("/", emailAuthDataRoute);
+router.use("/", lockRoute);
 
-  router.use("/", defaultRoute);
-  router.use("/", emailAuthDataRoute);
-  router.use("/", lockRoute);
-
-  return router;
-};
-
-export default final;
+export default router;
