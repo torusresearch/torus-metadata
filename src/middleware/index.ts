@@ -11,7 +11,7 @@ export const validateDataTimeStamp = async (req: Request, res: Response, next: N
   const { timestamp } = setData;
   const timeParsed = parseInt(timestamp, 16);
   if (~~(Date.now() / 1000) - timeParsed > 60) {
-    return res.status(403).json({ error: { message: "Message has been signed more than 60s ago" }, success: false });
+    return res.status(403).json({ error: { timestamp: "Message has been signed more than 60s ago" }, success: false });
   }
   return next();
 };
@@ -35,8 +35,9 @@ export const validateSignature = async (req: Request, res: Response, next: NextF
   try {
     const setDataInput: SetDataInput = req.body;
     const isValid = isValidSignature(setDataInput);
+
     if (!isValid) {
-      return res.status(403).json({ error: { message: "Invalid signature" }, success: false });
+      return res.status(403).json({ error: { signature: "Invalid signature" }, success: false });
     }
     return next();
   } catch (error) {

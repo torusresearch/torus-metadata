@@ -46,6 +46,7 @@ const validateSetData = Joi.object({
     data: Joi.string().required(),
     timestamp: Joi.string().hex().required(),
   }),
+  signature: Joi.string().max(128).required(),
 });
 
 router.post(
