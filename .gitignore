@@ -69,3 +69,5 @@ pnpm-lock.yaml
 
 #local pre-commit-hooks
 .husky
+
+dist/

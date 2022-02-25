@@ -1,3 +1,4 @@
+import { celebrate, Joi, Segments } from "celebrate";
 import express, { Request, Response } from "express";
 import log from "loglevel";
 
@@ -12,61 +13,83 @@ const router = express.Router();
 // 1: acquire/release lock succeeded
 // 2: unable to release lock
 
-router.get("/acquireLock", validateLockData, async (req: Request, res: Response) => {
-  const { key: pubKey } = req.body;
-  try {
-    let value: string;
+router.post(
+  "/acquireLock",
+  celebrate({
+    [Segments.BODY]: Joi.object({
+      key: Joi.string().hex().max(128).required(),
+      data: Joi.object({
+        timeStamp: Joi.number().required(),
+      }),
+      signature: Joi.string().max(128).required(),
+    }),
+  }),
+  validateLockData,
+  async (req: Request, res: Response) => {
+    const { key: pubKey }: { key: string } = req.body;
     try {
-      value = await redis.get(pubKey);
-    } catch (error) {
-      log.warn("redis get failed", error);
-    }
-
-    if (!value) {
+      let value: string;
       try {
-        const id = randomID();
-        await redis.setEx(pubKey, REDIS_LOCK_TIMEOUT, id);
-        return res.json({ status: 1, id });
+        value = await redis.get(pubKey);
       } catch (error) {
-        log.warn("redis set failed", error);
+        log.warn("redis get failed", error);
       }
-    }
-    return res.json({ status: 0 });
-  } catch (error) {
-    log.error("acquire lock failed", error);
-    return res.status(500).json({ error: getError(error), success: false });
-  }
-});
 
-router.get("/releaseLock", async (req: Request, res: Response) => {
-  try {
-    const { key, id } = req.body;
-
-    let value: string;
-    try {
-      value = await redis.get(key);
-    } catch (error) {
-      log.warn("redis get failed", error);
-    }
-
-    if (!value) {
-      // No lock exists
-      // Redis_timeout auto clear or no lock was ever created
+      if (!value) {
+        try {
+          const id = randomID();
+          await redis.setEx(pubKey, REDIS_LOCK_TIMEOUT, id);
+          return res.json({ status: 1, id });
+        } catch (error) {
+          log.warn("redis set failed", error);
+        }
+      }
       return res.json({ status: 0 });
+    } catch (error) {
+      log.error("acquire lock failed", error);
+      return res.status(500).json({ error: getError(error), success: false });
     }
-    if (value === id) {
-      try {
-        await redis.del(key);
-        return res.json({ status: 1 });
-      } catch (error) {
-        log.warn("redis delete failed", error);
-      }
-    }
-    return res.json({ status: 2 });
-  } catch (error) {
-    log.error("release lock failed", error);
-    return res.status(500).json({ error: getError(error), success: false });
   }
-});
+);
+
+router.post(
+  "/releaseLock",
+  celebrate({
+    [Segments.BODY]: Joi.object({
+      id: Joi.string().max(7).required(),
+      key: Joi.string().hex().max(128).required(),
+    }),
+  }),
+  async (req: Request, res: Response) => {
+    try {
+      const { key, id }: { key: string; id: string } = req.body;
+
+      let value: string;
+      try {
+        value = await redis.get(key);
+      } catch (error) {
+        log.warn("redis get failed", error);
+      }
+
+      if (!value) {
+        // No lock exists
+        // Redis_timeout auto clear or no lock was ever created
+        return res.json({ status: 0 });
+      }
+      if (value === id) {
+        try {
+          await redis.del(key);
+          return res.json({ status: 1 });
+        } catch (error) {
+          log.warn("redis delete failed", error);
+        }
+      }
+      return res.json({ status: 2 });
+    } catch (error) {
+      log.error("release lock failed", error);
+      return res.status(500).json({ error: getError(error), success: false });
+    }
+  }
+);
 
 export default router;
