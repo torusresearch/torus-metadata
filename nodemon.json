@@ -3,8 +3,9 @@
   "ignore": [".git", "node_modules/", "dist/", "coverage/"],
   "watch": ["src/"],
   "ext": "ts,js,json",
+  "inspect": "0.0.0.0:9229",
   "execMap": {
-    "ts": "node -r ts-node/register"
+    "ts": "node -r ts-node/register --inspect-brk"
   },
   "env": {
     "NODE_ENV": "development"

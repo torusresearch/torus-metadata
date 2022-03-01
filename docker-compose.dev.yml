@@ -21,18 +21,19 @@ services:
       - ./.env.development
     ports:
       - "3306:3306"
-  torus-metadata:
-    restart: always
-    depends_on:
-      - mysql
-      - ipfs
-      - redis
-    build:
-      context: .
-      dockerfile: Dockerfile.dev
-    env_file:
-      - ./.env.development
-    ports:
-      - "5051:5051/tcp"
-    volumes:
-      - .:/app
+  # torus-metadata:
+  #   restart: always
+  #   depends_on:
+  #     - mysql
+  #     - ipfs
+  #     - redis
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile.dev
+  #   env_file:
+  #     - ./.env.development
+  #   ports:
+  #     - "5051:5051/tcp"
+  #     - "9229:9229/tcp"
+  #   volumes:
+  #     - .:/app
