@@ -25,7 +25,7 @@ services:
     depends_on:
       - mysql
       - redis
-      - ipfs
+      # - ipfs
     build:
       context: .
       dockerfile: Dockerfile.dev

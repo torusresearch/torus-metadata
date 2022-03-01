@@ -25,7 +25,7 @@ services:
     restart: always
     depends_on:
       - mysql
-      - ipfs
+      # - ipfs
       - redis
     build:
       context: .
