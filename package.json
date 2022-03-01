@@ -15,8 +15,8 @@
     "lint:ts": "eslint --fix 'src/**/*.ts'",
     "prepare": "husky install",
     "test": "cross-env NODE_ENV=development LOG_DEBUG=yes mocha",
-    "posttest": "docker-compose -f docker-compose-ci.yml down",
-    "test:ci": "docker-compose -f docker-compose-ci.yml up --build --abort-on-container-exit --exit-code-from torus-metadata-js"
+    "test:ci": "docker-compose -f docker-compose-ci.yml up --build --abort-on-container-exit --exit-code-from torus-metadata-js",
+    "down:ci": "docker-compose -f docker-compose-ci.yml down"
   },
   "keywords": [],
   "author": "Chaitanya Potti",

@@ -219,8 +219,8 @@ describe("API-calls", function () {
       try {
         await post(`${server}/bulk_set_stream`, FD, options, customOptions);
       } catch (err) {
-        const { error } = await err.json();
-        assert.deepStrictEqual(error.pub_key_X, "pub_key_X field is required"); // same goes for pubkeyY
+        const error = await err.json();
+        assert.deepStrictEqual(error.validation.body.message, '"shares[0].pub_key_X" is not allowed to be empty'); // same goes for pubkeyY
       }
     });
 

@@ -51,13 +51,16 @@ const validateSetData = Joi.object({
 
 router.post(
   "/get",
-  celebrate({
-    [Segments.BODY]: Joi.object({
-      namespace: Joi.string().max(128),
-      pub_key_X: Joi.string().max(66).required(),
-      pub_key_Y: Joi.string().max(66).required(),
-    }),
-  }),
+  celebrate(
+    {
+      [Segments.BODY]: Joi.object({
+        namespace: Joi.string().max(128),
+        pub_key_X: Joi.string().max(66).required(),
+        pub_key_Y: Joi.string().max(66).required(),
+      }),
+    },
+    { allowUnknown: true }
+  ),
   validateNamespace,
   async (req: Request, res: Response) => {
     try {
@@ -198,11 +201,14 @@ router.post(
   "/bulk_set_stream",
   upload.none(),
   serializeStreamBody,
-  celebrate({
-    [Segments.BODY]: Joi.object({
-      shares: Joi.array().items(validateSetData),
-    }),
-  }),
+  celebrate(
+    {
+      [Segments.BODY]: Joi.object({
+        shares: Joi.array().items(validateSetData),
+      }),
+    },
+    { allowUnknown: true }
+  ),
   validateMetadataLoopInput("shares"),
   validateLoopSignature("shares"),
   validateNamespaceLoop("shares"),
