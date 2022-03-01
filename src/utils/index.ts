@@ -30,7 +30,7 @@ export const MAX_BATCH_SIZE = 60 * 1024 * 1024; // 60MB
 export const REDIS_NAME_SPACE = "EMAIL_AUTH_DATA";
 
 export const isValidSignature = (data: SetDataInput) => {
-  const { pub_key_Y: pubKeyX, pub_key_Y: pubKeyY, signature, set_data: setData } = data;
+  const { pub_key_X: pubKeyX, pub_key_Y: pubKeyY, signature, set_data: setData } = data;
   const pubKey = elliptic.keyFromPublic({ x: pubKeyX, y: pubKeyY }, "hex");
   const decodedSignature = Buffer.from(signature, "base64").toString("hex");
   const ecSignature = {

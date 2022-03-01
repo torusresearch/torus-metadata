@@ -142,20 +142,14 @@ describe("API-calls", function () {
       }
     });
 
-    it.only("#it should be able to set/get metadata with correct validation", async function () {
+    it("#it should be able to set/get metadata with correct validation", async function () {
       const message = {
         test: Math.random().toString(36).substring(7),
       };
 
-      try {
-        const res = await storageLayer.setMetadata({ input: message, privKey: PRIVATE_KEY });
-        console.log(res);
-        // const data = await storageLayer.getMetadata({ privKey: PRIVATE_KEY });
-        // assert.strictEqual(data.test, message.test);
-      } catch (error) {
-        const js = await error.json();
-        console.log(js);
-      }
+      await storageLayer.setMetadata({ input: message, privKey: PRIVATE_KEY });
+      const data = await storageLayer.getMetadata({ privKey: PRIVATE_KEY });
+      assert.strictEqual(data.test, message.test);
     });
   });
 
