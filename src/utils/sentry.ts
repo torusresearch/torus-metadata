@@ -1,5 +1,4 @@
 import * as Sentry from "@sentry/node";
-import * as Tracing from "@sentry/tracing";
 import { Express } from "express";
 
 import redact from "./redactSentry";
@@ -11,18 +10,9 @@ export const registerSentry = (app: Express): void => {
       dsn: sentryDsn,
       environment: process.env.NODE_ENV,
       integrations: [
-        // enable HTTP calls tracing
-        new Sentry.Integrations.Http({ tracing: true, breadcrumbs: true }),
-        // enable Express.js middleware tracing
-        new Tracing.Integrations.Express({
-          // to trace all requests to the default router
-          app,
-          // alternatively, you can specify the routes you want to trace:
-          // router: someRouter,
-        }),
-        new Tracing.Integrations.Mysql(), // Add this integration
+        // enable HTTP calls
+        new Sentry.Integrations.Http({ breadcrumbs: true }),
       ],
-      tracesSampleRate: 0.01,
       sampleRate: 0.2,
       beforeSend(event) {
         return redact(event);
@@ -33,8 +23,6 @@ export const registerSentry = (app: Express): void => {
         request: ["public_address", "data", "headers", "method", "query_string", "url"],
       })
     );
-    // TracingHandler creates a trace for every incoming request
-    app.use(Sentry.Handlers.tracingHandler());
   }
 };
 

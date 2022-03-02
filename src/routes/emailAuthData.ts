@@ -8,6 +8,7 @@ import { getError, REDIS_NAME_SPACE } from "../utils";
 const router = express.Router();
 const REDIS_TIMEOUT = 300; // 5m
 
+// TODO: Add signature validation
 router.post(
   "/updateAuthData",
   celebrate({
