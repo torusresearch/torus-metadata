@@ -7,7 +7,7 @@ import metadataRoute from "./metadata";
 
 const router = express.Router();
 router.use("/", defaultRoute);
-router.use("/", emailAuthDataRoute);
+router.use("/auth", emailAuthDataRoute);
 router.use("/", lockRoute);
 router.use("/", metadataRoute);
 

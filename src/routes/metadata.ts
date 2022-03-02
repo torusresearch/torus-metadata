@@ -45,7 +45,7 @@ const validateSetData = Joi.object({
   set_data: Joi.object({
     data: Joi.string().required(),
     timestamp: Joi.string().hex().required(),
-  }),
+  }).required(),
   signature: Joi.string().max(88).required(),
 });
 
