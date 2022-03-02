@@ -13,7 +13,7 @@ router.post(
   celebrate({
     [Segments.BODY]: Joi.object({
       encAuthData: Joi.string().required(),
-      instancePubKeyX: Joi.string().max(66).required(),
+      instancePubKey: Joi.string().length(130).required(),
     }),
   }),
   async (req, res) => {

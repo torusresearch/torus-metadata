@@ -17,11 +17,11 @@ router.post(
   "/acquireLock",
   celebrate({
     [Segments.BODY]: Joi.object({
-      key: Joi.string().hex().max(128).required(),
+      key: Joi.string().hex().length(130).required(),
       data: Joi.object({
-        timeStamp: Joi.number().required(),
-      }),
-      signature: Joi.string().max(128).required(),
+        timestamp: Joi.number().required(),
+      }).required(),
+      signature: Joi.string().length(142).required(),
     }),
   }),
   validateLockData,
@@ -57,9 +57,14 @@ router.post(
   celebrate({
     [Segments.BODY]: Joi.object({
       id: Joi.string().max(7).required(),
-      key: Joi.string().hex().max(128).required(),
+      key: Joi.string().hex().length(130).required(),
+      signature: Joi.string().length(142).required(),
+      data: Joi.object({
+        timestamp: Joi.number().required(),
+      }).required(),
     }),
   }),
+  validateLockData,
   async (req: Request, res: Response) => {
     try {
       const { key, id }: { key: string; id: string } = req.body;
