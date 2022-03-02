@@ -39,7 +39,7 @@ const NAMESPACES = {
 const RESERVED_NAMESPACES = [NAMESPACES.nonceV2, NAMESPACES.pubNonceV2];
 
 const validateSetData = Joi.object({
-  namespace: Joi.string().max(128).required(),
+  namespace: Joi.string().max(128),
   pub_key_X: Joi.string().max(64).hex().required(),
   pub_key_Y: Joi.string().max(64).hex().required(),
   set_data: Joi.object({
