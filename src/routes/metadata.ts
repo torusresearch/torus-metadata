@@ -316,6 +316,12 @@ router.post(
     [Segments.BODY]: Joi.object({
       pub_key_X: Joi.string().max(64).required(),
       pub_key_Y: Joi.string().max(64).required(),
+      namespace: Joi.string().max(128),
+      set_data: Joi.object({
+        data: Joi.string(),
+        timestamp: Joi.string().hex(),
+      }),
+      signature: Joi.string().max(88),
     }),
   }),
   validateGetOrSetNonceSetInput,
