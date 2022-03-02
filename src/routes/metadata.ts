@@ -362,7 +362,7 @@ router.post(
 
       // if not check if v2 has been created before
       let nonce: string;
-      let pubNonce: string;
+      let pubNonce: string | { x: string; y: string };
       let ipfs: string[];
 
       try {
@@ -395,7 +395,7 @@ router.post(
         }
 
         if (!pubNonce) throw new Error("pub nonce value is null");
-        pubNonce = JSON.parse(pubNonce);
+        pubNonce = JSON.parse(pubNonce as string);
       }
 
       // its a new v2 user, lets set his nonce
@@ -403,13 +403,13 @@ router.post(
         nonce = generatePrivate().toString("hex");
 
         const unformattedPubNonce = elliptic.keyFromPrivate(nonce).getPublic();
-        const localPubNonce = {
+        pubNonce = {
           x: unformattedPubNonce.getX().toString("hex"),
           y: unformattedPubNonce.getY().toString("hex"),
         };
 
         // We just created new nonce and pub nonce above, write to db
-        const pubNonceStr = JSON.stringify(localPubNonce);
+        const pubNonceStr = JSON.stringify(pubNonce);
         await insertDataInBatchForTable(tableName, [
           [
             { key, value: nonce },
@@ -417,7 +417,7 @@ router.post(
           ],
         ]);
         [ipfs] = await Promise.all([
-          getHashAndWriteAsync({ [tableName]: [{ key, value: JSON.stringify(localPubNonce) }] }),
+          getHashAndWriteAsync({ [tableName]: [{ key, value: pubNonceStr }] }),
           redis.setEx(key, REDIS_TIMEOUT, nonce).catch((error) => log.warn("redis set failed", error)),
           redis.setEx(keyForPubNonce, REDIS_TIMEOUT, pubNonceStr).catch((error) => log.warn("redis set failed", error)),
         ]);
