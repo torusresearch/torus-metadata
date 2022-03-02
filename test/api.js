@@ -21,6 +21,8 @@ const server = `http://${host}:${port}`;
 chai.use(chaiHttp);
 const { assert, request } = chai;
 
+const randomID = () => `${Math.random().toString(36).substring(2, 9)}`;
+
 /**
  * Testing API calls.
  */
@@ -261,6 +263,46 @@ describe("API-calls", function () {
 
       assert.deepStrictEqual(resp, messages[0], "set and get message should be equal");
       assert.deepStrictEqual(resp2, messages[1], "set and get message should be equal");
+    });
+  });
+
+  describe("/lock", function () {
+    const storageLayer = new TorusStorageLayer({ hostUrl: server });
+
+    let privKey;
+    let lockId;
+
+    before(function () {
+      privKey = new BN(generatePrivate());
+    });
+
+    it("#cannot release empty lock", async function () {
+      const { status: releaseStatus } = await storageLayer.releaseWriteLock({ id: randomID(), privKey });
+      assert.strictEqual(releaseStatus, 0);
+    });
+
+    it("#it should acquire lock correctly", async function () {
+      const { id, status } = await storageLayer.acquireWriteLock({ privKey });
+      assert.strictEqual(status, 1);
+      assert.isNotEmpty(id);
+      lockId = id;
+    });
+
+    it("#it should not re acquire lock correctly", async function () {
+      const { status } = await storageLayer.acquireWriteLock({ privKey });
+      assert.strictEqual(status, 0);
+    });
+
+    it("#it should release lock correctly", async function () {
+      const { status: releaseStatus } = await storageLayer.releaseWriteLock({ id: lockId, privKey });
+      assert.strictEqual(releaseStatus, 1);
+    });
+
+    it("#it should not release another lock of priv key", async function () {
+      const { status } = await storageLayer.acquireWriteLock({ privKey });
+      assert.strictEqual(status, 1);
+      const { status: releaseStatus } = await storageLayer.releaseWriteLock({ id: randomID(), privKey });
+      assert.strictEqual(releaseStatus, 2);
     });
   });
 });

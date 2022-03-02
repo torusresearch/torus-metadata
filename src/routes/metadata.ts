@@ -40,13 +40,13 @@ const RESERVED_NAMESPACES = [NAMESPACES.nonceV2, NAMESPACES.pubNonceV2];
 
 const validateSetData = Joi.object({
   namespace: Joi.string().max(128).required(),
-  pub_key_X: Joi.string().length(64).hex().required(),
-  pub_key_Y: Joi.string().length(64).hex().required(),
+  pub_key_X: Joi.string().max(64).hex().required(),
+  pub_key_Y: Joi.string().max(64).hex().required(),
   set_data: Joi.object({
     data: Joi.string().required(),
     timestamp: Joi.string().hex().required(),
   }),
-  signature: Joi.string().length(88).required(),
+  signature: Joi.string().max(88).required(),
 });
 
 router.post(
@@ -55,8 +55,8 @@ router.post(
     {
       [Segments.BODY]: Joi.object({
         namespace: Joi.string().max(128),
-        pub_key_X: Joi.string().length(64).required(),
-        pub_key_Y: Joi.string().length(64).required(),
+        pub_key_X: Joi.string().max(64).required(),
+        pub_key_Y: Joi.string().max(64).required(),
       }),
     },
     { allowUnknown: true }
@@ -279,8 +279,8 @@ if (process.env.NODE_ENV === "development") {
     celebrate({
       [Segments.BODY]: Joi.object({
         namespace: Joi.string().max(128),
-        pub_key_X: Joi.string().length(64).required(),
-        pub_key_Y: Joi.string().length(64).required(),
+        pub_key_X: Joi.string().max(64).required(),
+        pub_key_Y: Joi.string().max(64).required(),
       }),
     }),
     validateNamespace,
@@ -314,8 +314,8 @@ router.post(
   "/get_or_set_nonce",
   celebrate({
     [Segments.BODY]: Joi.object({
-      pub_key_X: Joi.string().length(64).required(),
-      pub_key_Y: Joi.string().length(64).required(),
+      pub_key_X: Joi.string().max(64).required(),
+      pub_key_Y: Joi.string().max(64).required(),
     }),
   }),
   validateGetOrSetNonceSetInput,

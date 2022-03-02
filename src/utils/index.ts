@@ -42,10 +42,5 @@ export const isValidSignature = (data: SetDataInput) => {
 
 export const isValidLockSignature = (lockData: LockDataInput) => {
   const { key, signature, data } = lockData;
-  const decodedSignature = Buffer.from(signature, "base64").toString("hex");
-  const ecSignature = {
-    r: Buffer.from(decodedSignature.substring(0, 64), "hex"),
-    s: Buffer.from(decodedSignature.substring(64, 128), "hex"),
-  };
-  return elliptic.verify(keccak256(stringify(data)), ecSignature, Buffer.from(key, "hex"));
+  return elliptic.verify(keccak256(stringify(data)), signature, Buffer.from(key, "hex"));
 };
