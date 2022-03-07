@@ -9,14 +9,14 @@
 
 on: push
 
-name: push torus-metadata-js image to ECR
+name: push torus-metadata image to ECR
 
 jobs:
   test:
     name: run tests
     strategy:
       matrix:
-        node: ["14.x"]
+        node: ["16.x"]
         os: [ubuntu-latest]
 
     runs-on: ${{ matrix.os }}
@@ -59,7 +59,7 @@ jobs:
         id: build-image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: torus-metadata-js
+          ECR_REPOSITORY: torus-metadata
           IMAGE_TAG: latest
         run: |
           # Build a docker container and push it to ECR 
@@ -74,7 +74,7 @@ jobs:
           aws ecs update-service --cluster $ECS_CLUSTER_METADATA --service $ECS_SERVICE_METADATA --force-new-deployment
         env:
           ECS_CLUSTER_METADATA: prod-microservices
-          ECS_SERVICE_METADATA: torus-metadata-js-service
+          ECS_SERVICE_METADATA: torus-metadata-service
   deployToSing:
     if: ${{ github.ref == 'refs/heads/master' }}
     name: Deploy
@@ -103,7 +103,7 @@ jobs:
         id: build-image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: torus-metadata-js
+          ECR_REPOSITORY: torus-metadata
           IMAGE_TAG: latest
         run: |
           # Build a docker container and push it to ECR 
@@ -118,4 +118,4 @@ jobs:
           aws ecs update-service --cluster $ECS_CLUSTER_METADATA --service $ECS_SERVICE_METADATA --force-new-deployment
         env:
           ECS_CLUSTER_METADATA: prod-microservices
-          ECS_SERVICE_METADATA: torus-metadata-js-service
+          ECS_SERVICE_METADATA: torus-metadata-service

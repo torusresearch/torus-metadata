@@ -1,5 +1,5 @@
-// Update with your config settings.
-const log = require("loglevel");
+import { Knex } from "knex";
+import log from "loglevel";
 
 log.info({
   host: process.env.RDS_HOSTNAME_WRITE,
@@ -12,7 +12,7 @@ log.info({
   devDatabase: process.env.MYSQL_DATABASE,
 });
 
-function afterCreate(conn, done) {
+function afterCreate(conn: Knex.Client, done: (err: Error, connection: unknown) => void): void {
   if (process.env.IS_AURORA_READ_REPLICA === "true") {
     conn.query("SET aurora_replica_read_consistency='SESSION';", (err) => {
       if (err) {
@@ -30,7 +30,7 @@ function afterCreate(conn, done) {
   }
 }
 
-module.exports = {
+export default {
   development: {
     client: "mysql",
     connection: {
@@ -39,6 +39,8 @@ module.exports = {
       port: process.env.RDS_PORT,
       user: process.env.MYSQL_USER,
       password: process.env.MYSQL_PASSWORD,
+      supportBigNumbers: true,
+      bigNumberStrings: true,
     },
     pool: {
       min: 2,
@@ -53,7 +55,7 @@ module.exports = {
     migrations: {
       tableName: "knex_migrations",
     },
-  },
+  } as Knex.Config,
 
   stagingRead: {
     client: "mysql",
@@ -63,6 +65,8 @@ module.exports = {
       port: process.env.RDS_PORT,
       user: process.env.RDS_USERNAME,
       password: process.env.RDS_PASSWORD,
+      supportBigNumbers: true,
+      bigNumberStrings: true,
     },
     pool: {
       min: 2,
@@ -78,7 +82,7 @@ module.exports = {
     migrations: {
       tableName: "knex_migrations",
     },
-  },
+  } as Knex.Config,
 
   productionRead: {
     client: "mysql",
@@ -88,6 +92,8 @@ module.exports = {
       port: process.env.RDS_PORT,
       user: process.env.RDS_USERNAME,
       password: process.env.RDS_PASSWORD,
+      supportBigNumbers: true,
+      bigNumberStrings: true,
     },
     pool: {
       min: 2,
@@ -103,7 +109,7 @@ module.exports = {
     migrations: {
       tableName: "knex_migrations",
     },
-  },
+  } as Knex.Config,
 
   stagingWrite: {
     client: "mysql",
@@ -113,6 +119,8 @@ module.exports = {
       port: process.env.RDS_PORT,
       user: process.env.RDS_USERNAME,
       password: process.env.RDS_PASSWORD,
+      supportBigNumbers: true,
+      bigNumberStrings: true,
     },
     pool: {
       min: 2,
@@ -128,7 +136,7 @@ module.exports = {
     migrations: {
       tableName: "knex_migrations",
     },
-  },
+  } as Knex.Config,
 
   productionWrite: {
     client: "mysql",
@@ -138,6 +146,8 @@ module.exports = {
       port: process.env.RDS_PORT,
       user: process.env.RDS_USERNAME,
       password: process.env.RDS_PASSWORD,
+      supportBigNumbers: true,
+      bigNumberStrings: true,
     },
     pool: {
       min: 2,
@@ -153,5 +163,5 @@ module.exports = {
     migrations: {
       tableName: "knex_migrations",
     },
-  },
+  } as Knex.Config,
 };

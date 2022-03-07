@@ -1,55 +1,17 @@
 {
-  "extends": [
-    "standard",
-    "plugin:prettier/recommended",
-    "eslint:recommended",
-    "airbnb-base",
-    "problems",
-    "plugin:promise/recommended",
-    "plugin:chai-expect/recommended",
-    "plugin:mocha/recommended",
-    "plugin:security/recommended",
-    "plugin:node/recommended",
-    "prettier"
-  ],
-  "plugins": ["prettier", "promise", "chai-expect", "mocha", "security", "node"],
+  "root": true,
+  "extends": ["@toruslabs/eslint-config-node"],
+  "parser": "@typescript-eslint/parser",
   "parserOptions": {
     "sourceType": "module",
-    "ecmaVersion": 2020
+    "ecmaVersion": 11,
+    "project": "./tsconfig.json"
   },
   "env": {
-    "es6": true,
-    "node": true,
-    "mocha": true
+    "es2020": true,
+    "node": true
   },
   "rules": {
-    "no-bitwise": 0,
-    "security/detect-object-injection": 0,
-    "no-param-reassign": [2, { "props": false }],
-    "camelcase": 0,
-    "no-underscore-dangle": [
-      2,
-      {
-        "allow": ["_doc", "_id"]
-      }
-    ],
-    "no-restricted-syntax": 0,
-    "global-require": 0,
-    "promise/always-return": 0,
-    "func-names": 0,
-    "prefer-arrow-callback": 0,
-    "mocha/prefer-arrow-callback": 2,
-    "object-curly-newline": 0,
-    "quotes": [2, "double"],
-    "no-unused-vars": [2, { "args": "after-used", "argsIgnorePattern": "_" }],
-    "max-len": [2, { "code": 150, "ignoreComments": true }],
-    "prettier/prettier": ["error", { "printWidth": 150, "endOfLine": "auto" }]
-  },
-  "globals": {
-    "it": "readonly",
-    "beforeEach": "readonly",
-    "afterEach": "readonly",
-    "describe": "readonly",
-    "expect": "readonly"
+    "camelcase": 0
   }
 }
