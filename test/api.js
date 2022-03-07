@@ -1,12 +1,7 @@
-/* eslint-disable no-console */
+/* eslint-disable import/no-extraneous-dependencies */
+/* eslint-disable node/no-extraneous-require */
+/* eslint-disable @typescript-eslint/no-var-requires */
 /* eslint-disable node/no-unpublished-require */
-/**
- * @fileOverview Unit test file for API-calls
- * @module
- * @author Shubham Rathi
- * @requires NPM:chai
- * @requires NPM:chai-http
- */
 
 const { TorusStorageLayer } = require("@tkey/storage-layer-torus");
 const { encrypt, getPubKeyECC } = require("@tkey/common-types");
@@ -25,6 +20,8 @@ const host = process.env.HOST || "localhost";
 const server = `http://${host}:${port}`;
 chai.use(chaiHttp);
 const { assert, request } = chai;
+
+const randomID = () => `${Math.random().toString(36).substring(2, 9)}`;
 
 /**
  * Testing API calls.
@@ -46,7 +43,7 @@ describe("API-calls", function () {
 
   describe("/set", function () {
     let PRIVATE_KEY;
-    let storageLayer = new TorusStorageLayer({ hostUrl: server });
+    const storageLayer = new TorusStorageLayer({ hostUrl: server });
 
     beforeEach(function () {
       PRIVATE_KEY = new BN(generatePrivate());
@@ -58,16 +55,16 @@ describe("API-calls", function () {
       };
 
       const bufferMetadata = Buffer.from(stringify(message));
-      let encryptedDetails = await encrypt(getPubKeyECC(PRIVATE_KEY), bufferMetadata);
+      const encryptedDetails = await encrypt(getPubKeyECC(PRIVATE_KEY), bufferMetadata);
       const serializedEncryptedDetails = globalThis.btoa(stringify(encryptedDetails));
 
-      let metadataParams = storageLayer.generateMetadataParams(serializedEncryptedDetails, undefined, PRIVATE_KEY);
+      const metadataParams = storageLayer.generateMetadataParams(serializedEncryptedDetails, undefined, PRIVATE_KEY);
       metadataParams.signature = ""; // remove signature
       try {
         await post(`${server}/set`, metadataParams);
       } catch (err) {
-        let { error } = await err.json();
-        assert.deepStrictEqual(error.signature, "signature field is required");
+        const val = await err.json();
+        assert.deepStrictEqual(val.validation.body.message, '"signature" is not allowed to be empty');
       }
     });
 
@@ -77,16 +74,16 @@ describe("API-calls", function () {
       };
 
       const bufferMetadata = Buffer.from(stringify(message));
-      let encryptedDetails = await encrypt(getPubKeyECC(PRIVATE_KEY), bufferMetadata);
+      const encryptedDetails = await encrypt(getPubKeyECC(PRIVATE_KEY), bufferMetadata);
       const serializedEncryptedDetails = globalThis.btoa(stringify(encryptedDetails));
 
-      let metadataParams = storageLayer.generateMetadataParams(serializedEncryptedDetails, undefined, PRIVATE_KEY);
+      const metadataParams = storageLayer.generateMetadataParams(serializedEncryptedDetails, undefined, PRIVATE_KEY);
       metadataParams.pub_key_X = ""; // remove signature
       try {
         await post(`${server}/set`, metadataParams);
       } catch (err) {
-        let { error } = await err.json();
-        assert.deepStrictEqual(error.pub_key_X, "pub_key_X field is required"); // same goes for pubkeyY
+        const val = await err.json();
+        assert.deepStrictEqual(val.validation.body.message, '"pub_key_X" is not allowed to be empty');
       }
     });
 
@@ -96,16 +93,16 @@ describe("API-calls", function () {
       };
 
       const bufferMetadata = Buffer.from(stringify(message));
-      let encryptedDetails = await encrypt(getPubKeyECC(PRIVATE_KEY), bufferMetadata);
+      const encryptedDetails = await encrypt(getPubKeyECC(PRIVATE_KEY), bufferMetadata);
       const serializedEncryptedDetails = globalThis.btoa(stringify(encryptedDetails));
 
-      let metadataParams = storageLayer.generateMetadataParams(serializedEncryptedDetails, undefined, PRIVATE_KEY);
+      const metadataParams = storageLayer.generateMetadataParams(serializedEncryptedDetails, undefined, PRIVATE_KEY);
       metadataParams.set_data.timestamp = ""; // remove signature
       try {
         await post(`${server}/set`, metadataParams);
       } catch (err) {
-        let { error } = await err.json();
-        assert.deepStrictEqual(error.timestamp, "timestamp field is required"); // same goes for pubkeyY
+        const val = await err.json();
+        assert.deepStrictEqual(val.validation.body.message, '"set_data.timestamp" is not allowed to be empty');
       }
     });
 
@@ -115,16 +112,16 @@ describe("API-calls", function () {
       };
 
       const bufferMetadata = Buffer.from(stringify(message));
-      let encryptedDetails = await encrypt(getPubKeyECC(PRIVATE_KEY), bufferMetadata);
+      const encryptedDetails = await encrypt(getPubKeyECC(PRIVATE_KEY), bufferMetadata);
       const serializedEncryptedDetails = globalThis.btoa(stringify(encryptedDetails));
 
-      let metadataParams = storageLayer.generateMetadataParams(serializedEncryptedDetails, undefined, PRIVATE_KEY);
+      const metadataParams = storageLayer.generateMetadataParams(serializedEncryptedDetails, undefined, PRIVATE_KEY);
       metadataParams.set_data.timestamp = new BN(~~(Date.now() / 1000) - 65).toString(16);
       try {
         await post(`${server}/set`, metadataParams);
       } catch (err) {
-        let { error } = await err.json();
-        assert.deepStrictEqual(error.timestamp, "Message has been signed more than 60s ago"); // same goes for pubkeyY
+        const val = await err.json();
+        assert.deepStrictEqual(val.error.timestamp, "Message has been signed more than 60s ago"); // same goes for pubkeyY
       }
     });
 
@@ -134,16 +131,16 @@ describe("API-calls", function () {
       };
 
       const bufferMetadata = Buffer.from(stringify(message));
-      let encryptedDetails = await encrypt(getPubKeyECC(PRIVATE_KEY), bufferMetadata);
+      const encryptedDetails = await encrypt(getPubKeyECC(PRIVATE_KEY), bufferMetadata);
       const serializedEncryptedDetails = globalThis.btoa(stringify(encryptedDetails));
 
-      let metadataParams = storageLayer.generateMetadataParams(serializedEncryptedDetails, undefined, PRIVATE_KEY);
+      const metadataParams = storageLayer.generateMetadataParams(serializedEncryptedDetails, undefined, PRIVATE_KEY);
       metadataParams.set_data.timestamp = new BN(~~(Date.now() / 1000) - 10).toString(16); // change timestamp, signature no longer valid
       try {
         await post(`${server}/set`, metadataParams);
       } catch (err) {
-        let { error } = await err.json();
-        assert.deepStrictEqual(error.signature, "Invalid signature"); // same goes for pubkeyY
+        const val = await err.json();
+        assert.deepStrictEqual(val.error.signature, "Invalid signature"); // same goes for pubkeyY
       }
     });
 
@@ -153,14 +150,13 @@ describe("API-calls", function () {
       };
 
       await storageLayer.setMetadata({ input: message, privKey: PRIVATE_KEY });
-      let data = await storageLayer.getMetadata({ privKey: PRIVATE_KEY });
+      const data = await storageLayer.getMetadata({ privKey: PRIVATE_KEY });
       assert.strictEqual(data.test, message.test);
     });
   });
 
   describe("/bulk_set_stream", function () {
-    let PRIVATE_KEY;
-    let storageLayer = new TorusStorageLayer({ hostUrl: server });
+    const storageLayer = new TorusStorageLayer({ hostUrl: server });
     let messages = [];
     let privateKeys = [];
     let finalMetadataParams = [];
@@ -177,7 +173,6 @@ describe("API-calls", function () {
     };
 
     beforeEach(async function () {
-      PRIVATE_KEY = new BN(generatePrivate());
       messages = [];
       for (let i = 0; i < 4; i += 1) {
         messages.push({
@@ -194,7 +189,7 @@ describe("API-calls", function () {
       finalMetadataParams = await Promise.all(
         messages.map(async (el, i) => {
           const bufferMetadata = Buffer.from(stringify(el));
-          let encryptedDetails = await encrypt(getPubKeyECC(privateKeys[i]), bufferMetadata);
+          const encryptedDetails = await encrypt(getPubKeyECC(privateKeys[i]), bufferMetadata);
           const serializedEncryptedDetails = globalThis.btoa(stringify(encryptedDetails));
           const metadataParams = storageLayer.generateMetadataParams(serializedEncryptedDetails, undefined, privateKeys[i]);
           return metadataParams;
@@ -211,7 +206,7 @@ describe("API-calls", function () {
       try {
         await post(`${server}/bulk_set_stream`, FD, options, customOptions);
       } catch (err) {
-        let { error } = await err.json();
+        const { error } = await err.json();
         assert.deepStrictEqual(error.message, "Unexpected end of JSON input"); // same goes for pubkeyY
       }
     });
@@ -226,8 +221,8 @@ describe("API-calls", function () {
       try {
         await post(`${server}/bulk_set_stream`, FD, options, customOptions);
       } catch (err) {
-        let { error } = await err.json();
-        assert.deepStrictEqual(error.pub_key_X, "pub_key_X field is required"); // same goes for pubkeyY
+        const error = await err.json();
+        assert.deepStrictEqual(error.validation.body.message, '"shares[0].pub_key_X" is not allowed to be empty'); // same goes for pubkeyY
       }
     });
 
@@ -241,7 +236,7 @@ describe("API-calls", function () {
       try {
         await post(`${server}/bulk_set_stream`, FD, options, customOptions);
       } catch (err) {
-        let { error } = await err.json();
+        const { error } = await err.json();
         assert.deepStrictEqual(error.timestamp, "Message has been signed more than 60s ago"); // same goes for pubkeyY
       }
     });
@@ -256,7 +251,7 @@ describe("API-calls", function () {
       try {
         await post(`${server}/bulk_set_stream`, FD, options, customOptions);
       } catch (err) {
-        let { error } = await err.json();
+        const { error } = await err.json();
         assert.deepStrictEqual(error.signature, "Invalid signature"); // same goes for pubkeyY
       }
     });
@@ -268,6 +263,46 @@ describe("API-calls", function () {
 
       assert.deepStrictEqual(resp, messages[0], "set and get message should be equal");
       assert.deepStrictEqual(resp2, messages[1], "set and get message should be equal");
+    });
+  });
+
+  describe("/lock", function () {
+    const storageLayer = new TorusStorageLayer({ hostUrl: server });
+
+    let privKey;
+    let lockId;
+
+    before(function () {
+      privKey = new BN(generatePrivate());
+    });
+
+    it("#cannot release empty lock", async function () {
+      const { status: releaseStatus } = await storageLayer.releaseWriteLock({ id: randomID(), privKey });
+      assert.strictEqual(releaseStatus, 0);
+    });
+
+    it("#it should acquire lock correctly", async function () {
+      const { id, status } = await storageLayer.acquireWriteLock({ privKey });
+      assert.strictEqual(status, 1);
+      assert.isNotEmpty(id);
+      lockId = id;
+    });
+
+    it("#it should not re acquire lock correctly", async function () {
+      const { status } = await storageLayer.acquireWriteLock({ privKey });
+      assert.strictEqual(status, 0);
+    });
+
+    it("#it should release lock correctly", async function () {
+      const { status: releaseStatus } = await storageLayer.releaseWriteLock({ id: lockId, privKey });
+      assert.strictEqual(releaseStatus, 1);
+    });
+
+    it("#it should not release another lock of priv key", async function () {
+      const { status } = await storageLayer.acquireWriteLock({ privKey });
+      assert.strictEqual(status, 1);
+      const { status: releaseStatus } = await storageLayer.releaseWriteLock({ id: randomID(), privKey });
+      assert.strictEqual(releaseStatus, 2);
     });
   });
 });

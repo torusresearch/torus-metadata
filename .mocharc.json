@@ -1,5 +1,7 @@
 {
   "require": ["./test/setup.js"],
+  "spec": "./test/api.js",
+  "extension": ["js", "ts"],
   "timeout": 0,
   "exit": true
 }

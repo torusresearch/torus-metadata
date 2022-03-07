@@ -1,6 +1,7 @@
-const { redactEventData } = require("@toruslabs/loglevel-sentry");
+import { Event } from "@sentry/node";
+import { redactEventData } from "@toruslabs/loglevel-sentry";
 
-module.exports = (event) => {
+export default (event: Event): Event => {
   if (!event.request) return event;
 
   // Redact body for sentitive URLs.

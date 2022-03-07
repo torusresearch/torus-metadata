@@ -1,4 +1,6 @@
-exports.up = function (knex) {
+import { Knex } from "knex";
+
+export async function up(knex: Knex): Promise<void> {
   return knex.schema.createTable("data", (table) => {
     table.increments("id");
     table.timestamp("created_at").notNullable().defaultTo(knex.fn.now());
@@ -7,11 +9,11 @@ exports.up = function (knex) {
     table.text("value", "mediumtext").notNullable().defaultTo("");
     table.index(["key"], "idx_key");
   });
-};
+}
 
-exports.down = function (knex) {
+export async function down(knex: Knex): Promise<void> {
   return knex.schema.dropTable("data");
-};
+}
 
 /*
 

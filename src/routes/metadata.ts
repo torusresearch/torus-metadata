@@ -1,29 +1,33 @@
-const log = require("loglevel");
-const express = require("express");
-const multer = require("multer");
-const { generatePrivate } = require("@toruslabs/eccrypto");
-const { ec: EC } = require("elliptic");
+/* eslint-disable security/detect-object-injection */
+import { generatePrivate } from "@toruslabs/eccrypto";
+import { celebrate, Joi, Segments } from "celebrate";
+import { ec as EC } from "elliptic";
+import express, { Request, Response } from "express";
+import log from "loglevel";
+import multer from "multer";
 
-const elliptic = new EC("secp256k1");
+import { getHashAndWriteAsync } from "../database/ipfs";
+import { knexRead, knexWrite } from "../database/knex";
+import redis from "../database/redis";
+import {
+  serializeStreamBody,
+  validateDataTimeStamp,
+  validateGetOrSetNonceSetInput,
+  validateGetOrSetNonceSignature,
+  validateLoopSignature,
+  validateMetadataLoopInput,
+  validateNamespace,
+  validateNamespaceLoop,
+  validateSignature,
+} from "../middleware";
+import { constructKey, getError, MAX_BATCH_SIZE, REDIS_TIMEOUT } from "../utils";
+import { DataInsertType, DBTableName, SetDataInput } from "../utils/interfaces";
 
 const upload = multer({
   limits: { fieldSize: 30 * 1024 * 1024 },
 });
 
-const { getError, constructKey, REDIS_TIMEOUT, MAX_BATCH_SIZE } = require("../utils");
-const {
-  validationMiddleware,
-  validationLoopMiddleware,
-  validateMetadataLoopInput,
-  validateLoopSignature,
-  serializeStreamBody,
-  validateNamespace,
-  validateNamespaceLoop,
-  validateGetOrSetNonceSetInput,
-  validateGetOrSetNonceSignature,
-} = require("../middleware");
-const { knexRead, knexWrite, redisClient: redis, getHashAndWriteAsync } = require("../database");
-const { validateMetadataInput, validateSignature } = require("../middleware");
+const elliptic = new EC("secp256k1");
 
 const router = express.Router();
 
@@ -31,45 +35,78 @@ const NAMESPACES = {
   nonceV2: "noncev2",
   pubNonceV2: "pub_noncev2",
 };
+
 const RESERVED_NAMESPACES = [NAMESPACES.nonceV2, NAMESPACES.pubNonceV2];
 
-router.post("/get", validationMiddleware(["pub_key_X", "pub_key_Y"]), validateNamespace, async (req, res) => {
-  try {
-    const { namespace, pub_key_X: pubKeyX, pub_key_Y: pubKeyY, tableName } = req.body;
-    const key = constructKey(pubKeyX, pubKeyY, namespace);
-    let value;
-    try {
-      value = await redis.get(key);
-    } catch (error) {
-      log.warn("redis get failed", error);
-    }
-
-    if (!value) {
-      const data = await knexRead(tableName).where({ key }).orderBy("created_at", "desc").orderBy("id", "desc").first();
-      value = (data && data.value) || "";
-    }
-    return res.json({ message: value });
-  } catch (error) {
-    log.error("get metadata failed", error);
-    return res.status(500).json({ error: getError(error), success: false });
-  }
+const validateSetData = Joi.object({
+  namespace: Joi.string().max(128),
+  pub_key_X: Joi.string().max(64).hex().required(),
+  pub_key_Y: Joi.string().max(64).hex().required(),
+  set_data: Joi.object({
+    data: Joi.string().required(),
+    timestamp: Joi.string().hex().required(),
+  }).required(),
+  signature: Joi.string().max(88).required(),
 });
 
 router.post(
-  "/set",
-  validationMiddleware(["pub_key_X", "pub_key_Y", "signature"]),
-  validateMetadataInput,
-  validateSignature,
+  "/get",
+  celebrate(
+    {
+      [Segments.BODY]: Joi.object({
+        namespace: Joi.string().max(128),
+        pub_key_X: Joi.string().max(64).required(),
+        pub_key_Y: Joi.string().max(64).required(),
+      }),
+    },
+    { allowUnknown: true }
+  ),
   validateNamespace,
+  async (req: Request, res: Response) => {
+    try {
+      const {
+        namespace = "",
+        pub_key_X: pubKeyX,
+        pub_key_Y: pubKeyY,
+        tableName = "",
+      }: { namespace?: string; pub_key_X: string; pub_key_Y: string; tableName?: DBTableName } = req.body;
+      const key = constructKey(pubKeyX, pubKeyY, namespace);
+      let value: string;
+      try {
+        value = await redis.get(key);
+      } catch (error) {
+        log.warn("redis get failed", error);
+      }
+
+      if (!value) {
+        const data = await knexRead(tableName).where({ key }).orderBy("created_at", "desc").orderBy("id", "desc").first();
+        value = data?.value || "";
+      }
+      return res.json({ message: value });
+    } catch (error) {
+      log.error("get metadata failed", error);
+      return res.status(500).json({ error: getError(error), success: false });
+    }
+  }
+);
+
+router.post(
+  "/set",
+  celebrate({
+    [Segments.BODY]: validateSetData,
+  }),
+  validateNamespace,
+  validateDataTimeStamp,
+  validateSignature,
   async (req, res) => {
     try {
       const {
-        namespace,
+        namespace = "",
         pub_key_X: pubKeyX,
         pub_key_Y: pubKeyY,
         set_data: { data },
-        tableName,
-      } = req.body;
+        tableName = "",
+      }: SetDataInput = req.body;
 
       if (RESERVED_NAMESPACES.includes(namespace)) {
         return res.status(400).json({ error: `${namespace} namespace is a reserved namespace`, success: false });
@@ -87,7 +124,7 @@ router.post(
         log.warn("redis set failed", error);
       }
 
-      const ipfsResult = await getHashAndWriteAsync([{ key, value: data }]);
+      const ipfsResult = await getHashAndWriteAsync({ [tableName]: [{ key, value: data }] });
       return res.json({ message: ipfsResult });
     } catch (error) {
       log.error("set metadata failed", error);
@@ -98,14 +135,18 @@ router.post(
 
 router.post(
   "/bulk_set",
-  validationLoopMiddleware([("pub_key_X", "pub_key_Y", "signature")], "shares"),
+  celebrate({
+    [Segments.BODY]: Joi.object({
+      shares: Joi.array().items(validateSetData).required(),
+    }),
+  }),
   validateMetadataLoopInput("shares"),
   validateLoopSignature("shares"),
   validateNamespaceLoop("shares"),
   async (req, res) => {
     try {
-      const { shares } = req.body;
-      const requiredData = shares.reduce((acc, x) => {
+      const { shares }: { shares: SetDataInput[] } = req.body;
+      const requiredData = shares.reduce((acc: Record<keyof DBTableName, DataInsertType[]>, x) => {
         const {
           namespace,
           pub_key_X: pubKeyX,
@@ -116,11 +157,11 @@ router.post(
         if (acc[tableName]) acc[tableName].push({ key: constructKey(pubKeyX, pubKeyY, namespace), value: data });
         else acc[tableName] = [{ key: constructKey(pubKeyX, pubKeyY, namespace), value: data }];
         return acc;
-      }, {});
+      }, {} as Record<keyof DBTableName, DataInsertType[]>);
 
       await Promise.all(Object.keys(requiredData).map((x) => knexWrite(x).insert(requiredData[x])));
 
-      const redisData = shares.reduce((acc, x) => {
+      const redisData = shares.reduce((acc: Record<string, string>, x) => {
         const {
           namespace,
           pub_key_X: pubKeyX,
@@ -130,7 +171,7 @@ router.post(
         const key = constructKey(pubKeyX, pubKeyY, namespace);
         acc[key] = data;
         return acc;
-      }, {});
+      }, {} as Record<string, string>);
 
       try {
         await Promise.all(Object.keys(redisData).map((x) => redis.setEx(x, REDIS_TIMEOUT, redisData[x])));
@@ -147,21 +188,37 @@ router.post(
   }
 );
 
+// data must be array of arrays with each array lesser than MAX_BATCH_SIZE
+async function insertDataInBatchForTable(tableName: DBTableName, data: DataInsertType[][]) {
+  return knexWrite.transaction(async (trx) => {
+    for (const batch of data) {
+      await knexWrite(tableName).insert(batch).transacting(trx);
+    }
+  });
+}
+
 router.post(
   "/bulk_set_stream",
   upload.none(),
   serializeStreamBody,
-  validationLoopMiddleware(["pub_key_X", "pub_key_Y", "signature"], "shares"),
+  celebrate(
+    {
+      [Segments.BODY]: Joi.object({
+        shares: Joi.array().items(validateSetData),
+      }),
+    },
+    { allowUnknown: true }
+  ),
   validateMetadataLoopInput("shares"),
   validateLoopSignature("shares"),
   validateNamespaceLoop("shares"),
   async (req, res) => {
     try {
-      const { shares } = req.body;
+      const { shares }: { shares: SetDataInput[] } = req.body;
 
       const redisData = {};
-      const totalBatchesPerTable = {}; // Key table name, value array of batch data (max 60MB)
-      const currentBatchSizePerTable = {}; // Key table name, value size of current batch
+      const totalBatchesPerTable: Partial<Record<DBTableName, DataInsertType[][]>> = {}; // Key table name, value array of batch data (max 60MB)
+      const currentBatchSizePerTable: Partial<Record<DBTableName, number>> = {}; // Key table name, value size of current batch
       for (const share of shares) {
         const {
           namespace,
@@ -192,7 +249,7 @@ router.post(
         }
       }
 
-      await Promise.all(Object.keys(totalBatchesPerTable).map((x) => insertDataInBatchForTable(x, totalBatchesPerTable[x])));
+      await Promise.all(Object.keys(totalBatchesPerTable).map((x: DBTableName) => insertDataInBatchForTable(x, totalBatchesPerTable[x])));
 
       try {
         await Promise.all(Object.keys(redisData).map((x) => redis.setEx(x, REDIS_TIMEOUT, redisData[x])));
@@ -200,11 +257,11 @@ router.post(
         log.warn("redis bulk set failed", error);
       }
 
-      const requiredData = Object.keys(totalBatchesPerTable).reduce((acc, x) => {
+      const requiredData = Object.keys(totalBatchesPerTable).reduce((acc: Record<DBTableName, DataInsertType[]>, x: DBTableName) => {
         const batch = totalBatchesPerTable[x];
         acc[x] = batch.flatMap((y) => y);
         return acc;
-      });
+      }, {} as Record<DBTableName, DataInsertType[]>);
 
       const ipfsResult = await getHashAndWriteAsync(requiredData);
       return res.json({ message: ipfsResult });
@@ -215,46 +272,58 @@ router.post(
   }
 );
 
-// data must be array of arrays with each array lesser than MAX_BATCH_SIZE
-async function insertDataInBatchForTable(tableName, data) {
-  return knexWrite.transaction(async (trx) => {
-    for (const batch of data) {
-      // eslint-disable-next-line no-await-in-loop
-      await knexWrite(tableName).insert(batch).transacting(trx);
-    }
-  });
-}
-
 if (process.env.NODE_ENV === "development") {
   // API for dev env only to test if v1 continue to work after deploying v2
-  router.post("/set_nonce", validationMiddleware(["pub_key_X", "pub_key_Y"]), validateNamespace, async (req, res) => {
-    try {
-      const { pub_key_X: pubKeyX, pub_key_Y: pubKeyY, tableName } = req.body;
-
-      const key = constructKey(pubKeyX, pubKeyY, NAMESPACES.nonceV2);
-
-      await knexWrite(tableName).insert({
-        key,
-        value: "<v1>",
-      });
-
+  router.post(
+    "/set_nonce",
+    celebrate({
+      [Segments.BODY]: Joi.object({
+        namespace: Joi.string().max(128),
+        pub_key_X: Joi.string().max(64).required(),
+        pub_key_Y: Joi.string().max(64).required(),
+      }),
+    }),
+    validateNamespace,
+    async (req, res) => {
       try {
-        await redis.setEx(key, REDIS_TIMEOUT, "<v1>");
-      } catch (error) {
-        log.warn("redis set failed", error);
-      }
+        const { pub_key_X: pubKeyX, pub_key_Y: pubKeyY, tableName }: { pub_key_X: string; pub_key_Y: string; tableName: string } = req.body;
 
-      return res.json({});
-    } catch (error) {
-      log.error("set_nonce failed", error);
-      return res.status(500).json({ error: getError(error), success: false });
+        const key = constructKey(pubKeyX, pubKeyY, NAMESPACES.nonceV2);
+
+        await knexWrite(tableName).insert({
+          key,
+          value: "<v1>",
+        });
+
+        try {
+          await redis.setEx(key, REDIS_TIMEOUT, "<v1>");
+        } catch (error) {
+          log.warn("redis set failed", error);
+        }
+
+        return res.json({});
+      } catch (error) {
+        log.error("set_nonce failed", error);
+        return res.status(500).json({ error: getError(error), success: false });
+      }
     }
-  });
+  );
 }
 
 router.post(
   "/get_or_set_nonce",
-  validationMiddleware(["pub_key_X", "pub_key_Y"]),
+  celebrate({
+    [Segments.BODY]: Joi.object({
+      pub_key_X: Joi.string().max(64).required(),
+      pub_key_Y: Joi.string().max(64).required(),
+      namespace: Joi.string().max(128),
+      set_data: Joi.object({
+        data: Joi.string(),
+        timestamp: Joi.string().hex(),
+      }),
+      signature: Joi.string().max(88),
+    }),
+  }),
   validateGetOrSetNonceSetInput,
   validateGetOrSetNonceSignature,
   validateNamespace,
@@ -266,12 +335,12 @@ router.post(
         set_data: { data },
         namespace: oldNamespace,
         tableName,
-      } = req.body;
+      }: SetDataInput = req.body;
 
       const oldKey = constructKey(pubKeyX, pubKeyY, oldNamespace);
 
       // check if it already exists
-      let oldValue;
+      let oldValue: string;
       try {
         oldValue = await redis.get(oldKey);
       } catch (error) {
@@ -281,7 +350,7 @@ router.post(
       if (!oldValue) {
         const oldRetrievedNonce = await knexRead(tableName).where({ key: oldKey }).orderBy("created_at", "desc").orderBy("id", "desc").first();
         // i want a nil value here
-        oldValue = (oldRetrievedNonce && oldRetrievedNonce.value) || undefined;
+        oldValue = oldRetrievedNonce?.value || undefined;
       }
 
       if (oldValue) {
@@ -292,9 +361,9 @@ router.post(
       const keyForPubNonce = constructKey(pubKeyX, pubKeyY, NAMESPACES.pubNonceV2);
 
       // if not check if v2 has been created before
-      let nonce;
-      let pubNonce;
-      let ipfs;
+      let nonce: string;
+      let pubNonce: string | { x: string; y: string };
+      let ipfs: string[];
 
       try {
         nonce = await redis.get(key);
@@ -304,7 +373,7 @@ router.post(
 
       if (!nonce) {
         const newRetrievedNonce = await knexRead(tableName).where({ key }).orderBy("created_at", "desc").orderBy("id", "desc").first();
-        nonce = (newRetrievedNonce && newRetrievedNonce.value) || undefined;
+        nonce = newRetrievedNonce?.value || undefined;
       }
 
       if (nonce === "<v1>" || (!nonce && data !== "getOrSetNonce")) return res.json({ typeOfUser: "v1" }); // This is a v1 user who didn't have a nonce before we rolled out v2, if he sets his nonce in the future, this value will be ignored
@@ -326,7 +395,7 @@ router.post(
         }
 
         if (!pubNonce) throw new Error("pub nonce value is null");
-        pubNonce = JSON.parse(pubNonce);
+        pubNonce = JSON.parse(pubNonce as string);
       }
 
       // its a new v2 user, lets set his nonce
@@ -348,7 +417,7 @@ router.post(
           ],
         ]);
         [ipfs] = await Promise.all([
-          getHashAndWriteAsync([{ key, value: pubNonce }]),
+          getHashAndWriteAsync({ [tableName]: [{ key, value: pubNonceStr }] }),
           redis.setEx(key, REDIS_TIMEOUT, nonce).catch((error) => log.warn("redis set failed", error)),
           redis.setEx(keyForPubNonce, REDIS_TIMEOUT, pubNonceStr).catch((error) => log.warn("redis set failed", error)),
         ]);
@@ -359,6 +428,7 @@ router.post(
         upgraded: nonce === "<deleted>",
         pubNonce,
         ipfs,
+        nonce: undefined,
       };
       if (!returnResponse.upgraded && !res.locals.noValidSig) {
         // if account is 1/1 and there's a valid sig, return nonce
@@ -372,4 +442,4 @@ router.post(
   }
 );
 
-module.exports = router;
+export default router;

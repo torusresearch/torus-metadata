@@ -1,3 +1,3 @@
-# torus-metadata-js
+# torus-metadata
 
-Metadata server is used with Tkey and DirectAuth metadata
+Metadata server is used with Tkey and CustomAuth metadata

@@ -1,4 +1,4 @@
-FROM node:14-alpine
+FROM node:16-alpine
 
 WORKDIR /app
 
@@ -16,4 +16,4 @@ COPY . .
 
 EXPOSE 5051
 
-CMD npm run prod
+CMD npm run build && npm run prod
