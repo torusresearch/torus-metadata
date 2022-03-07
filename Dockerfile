@@ -16,4 +16,4 @@ COPY . .
 
 EXPOSE 5051
 
-CMD npm run prod
+CMD npm run build && npm run prod
