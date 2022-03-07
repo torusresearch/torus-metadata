@@ -20,7 +20,7 @@ services:
       - ./.env.development
     ports:
       - "3306:3306"
-  torus-metadata-js:
+  torus-metadata:
     restart: "no"
     depends_on:
       - mysql
