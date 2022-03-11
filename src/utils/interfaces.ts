@@ -5,7 +5,7 @@ export const WEBAUTHN_TORUS_SHARE = "webauth_torus_share";
 export const WEBAUTHN_DEVICE_SHARE = "webauth_device_share";
 export const OAUTH_USERINFO = "oauth_userinfo";
 export const OAUTH_CREDID_CACHE = "oauth_credid_cache";
-export const NONCEV2 = "data";
+export const NONCEV2 = "noncev2";
 export const TEST = "test";
 
 const DBTableMap = {
@@ -16,7 +16,7 @@ const DBTableMap = {
   [WEBAUTHN_DEVICE_SHARE]: WEBAUTHN_DEVICE_SHARE,
   [OAUTH_USERINFO]: OAUTH_USERINFO,
   [OAUTH_CREDID_CACHE]: OAUTH_CREDID_CACHE,
-  [NONCEV2]: NONCEV2,
+  [NONCEV2]: "data",
   [TEST]: TEST,
 };
 
