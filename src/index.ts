@@ -25,6 +25,9 @@ import { registerSentry, registerSentryErrorHandler } from "./utils/sentry";
 
 const app = express();
 const http = createServer(app);
+
+app.set("trust proxy", 1);
+
 registerSentry(app);
 const io = setupSocketIo(http);
 setupIoListeners(io);
