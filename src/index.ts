@@ -25,6 +25,9 @@ import { registerSentry, registerSentryErrorHandler } from "./utils/sentry";
 
 const app = express();
 const http = createServer(app);
+
+app.set("trust proxy", 1);
+
 registerSentry(app);
 const io = setupSocketIo(http);
 setupIoListeners(io);
@@ -37,7 +40,7 @@ const corsOptions = {
   //   origin: ["https://localhost:3000", /\.tor\.us$/],
   origin: true,
   credentials: false,
-  allowedHeaders: ["Content-Type", "x-api-key", "x-embed-host", "sentry-trace"],
+  allowedHeaders: ["Content-Type", "x-api-key", "x-embed-host", "sentry-trace", "baggage"],
   methods: "GET,POST",
   maxAge: 86400,
 };
