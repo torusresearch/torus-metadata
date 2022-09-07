@@ -1,11 +1,13 @@
 /* eslint-disable security/detect-object-injection */
 import { generatePrivate } from "@toruslabs/eccrypto";
+import { types } from "cassandra-driver";
 import { celebrate, Joi, Segments } from "celebrate";
 import { ec as EC } from "elliptic";
 import express, { Request, Response } from "express";
 import log from "loglevel";
 import multer from "multer";
 
+import cassandra from "../database/cassandra";
 import { getHashAndWriteAsync } from "../database/ipfs";
 import { knexRead, knexWrite } from "../database/knex";
 import redis from "../database/redis";
@@ -71,17 +73,23 @@ router.post(
         tableName = "",
       }: { namespace?: string; pub_key_X: string; pub_key_Y: string; tableName?: DBTableName } = req.body;
       const key = constructKey(pubKeyX, pubKeyY, namespace);
-      let value: string;
-      try {
-        value = await redis.get(key);
-      } catch (error) {
-        log.warn("redis get failed", error);
-      }
+      // let value: string;
+      // try {
+      //   value = await redis.get(key);
+      // } catch (error) {
+      //   log.warn("redis get failed", error);
+      // }
 
-      if (!value) {
-        const data = await knexRead(tableName).where({ key }).orderBy("created_at", "desc").orderBy("id", "desc").first();
-        value = data?.value || "";
-      }
+      // if (!value) {
+      //   const data = await knexRead(tableName).where({ key }).orderBy("created_at", "desc").orderBy("id", "desc").first();
+      //   value = data?.value || "";
+      // }
+
+      const result = await cassandra.execute(`SELECT * FROM ${tableName} WHERE key = ?`, [key], {
+        prepare: true,
+        consistency: types.consistencies.all,
+      });
+      const { value } = result.first();
       return res.json({ message: value });
     } catch (error) {
       log.error("get metadata failed", error);
@@ -113,16 +121,20 @@ router.post(
       }
 
       const key = constructKey(pubKeyX, pubKeyY, namespace);
-      await knexWrite(tableName).insert({
-        key,
-        value: data,
-      });
+      // await knexWrite(tableName).insert({
+      //   key,
+      //   value: data,
+      // });
 
-      try {
-        await redis.setEx(key, REDIS_TIMEOUT, data);
-      } catch (error) {
-        log.warn("redis set failed", error);
-      }
+      // try {
+      //   await redis.setEx(key, REDIS_TIMEOUT, data);
+      // } catch (error) {
+      //   log.warn("redis set failed", error);
+      // }
+      await cassandra.execute(`INSERT INTO ${tableName} (key, value) VALUES (?,?)`, [key, data], {
+        prepare: true,
+        consistency: types.consistencies.all,
+      });
 
       const ipfsResult = await getHashAndWriteAsync({ [tableName]: [{ key, value: data }] });
       return res.json({ message: ipfsResult });
@@ -340,21 +352,27 @@ router.post(
       const oldKey = constructKey(pubKeyX, pubKeyY, oldNamespace);
 
       // check if it already exists
-      let oldValue: string;
-      try {
-        oldValue = await redis.get(oldKey);
-      } catch (error) {
-        log.warn("redis get failed", error);
-      }
+      // let oldValue: string;
+      // try {
+      //   oldValue = await redis.get(oldKey);
+      // } catch (error) {
+      //   log.warn("redis get failed", error);
+      // }
 
-      if (!oldValue) {
-        const oldRetrievedNonce = await knexRead(tableName).where({ key: oldKey }).orderBy("created_at", "desc").orderBy("id", "desc").first();
-        // i want a nil value here
-        oldValue = oldRetrievedNonce?.value || undefined;
-      }
+      // if (!oldValue) {
+      //   const oldRetrievedNonce = await knexRead(tableName).where({ key: oldKey }).orderBy("created_at", "desc").orderBy("id", "desc").first();
+      //   // i want a nil value here
+      //   oldValue = oldRetrievedNonce?.value || undefined;
+      // }
 
-      if (oldValue) {
-        return res.json({ typeOfUser: "v1", nonce: oldValue });
+      const result = await cassandra.execute(`SELECT * FROM ${tableName} WHERE key = ?`, [oldKey], {
+        prepare: true,
+        consistency: types.consistencies.localQuorum,
+      });
+      const { value } = result.first();
+
+      if (value) {
+        return res.json({ typeOfUser: "v1", nonce: value });
       }
 
       const key = constructKey(pubKeyX, pubKeyY, NAMESPACES.nonceV2);

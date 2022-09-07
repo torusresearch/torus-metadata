@@ -5,28 +5,18 @@ services:
   #   image: ipfs/go-ipfs
   #   ports:
   #     - "5001:5001/tcp"
-  redis:
+  cassandra:
     restart: always
-    image: redis
+    image: cassandra
     env_file:
       - ./.env.development
     ports:
-      - "6379:6379"
-  mysql:
-    restart: always
-    # platform: linux/x86_64
-    image: mysql:5.7
-    command: --max_allowed_packet=67108864 # 64 MB
-    env_file:
-      - ./.env.development
-    ports:
-      - "3306:3306"
+      - 9042:9042
   torus-metadata:
     restart: always
     depends_on:
-      - mysql
+      - cassandra
       # - ipfs
-      - redis
     build:
       context: .
       dockerfile: Dockerfile.dev
