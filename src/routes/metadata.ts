@@ -13,14 +13,14 @@ import { knexRead, knexWrite } from "../database/knex";
 import redis from "../database/redis";
 import {
   serializeStreamBody,
-  validateDataTimeStamp,
+  // validateDataTimeStamp,
   validateGetOrSetNonceSetInput,
   validateGetOrSetNonceSignature,
   validateLoopSignature,
   validateMetadataLoopInput,
   validateNamespace,
   validateNamespaceLoop,
-  validateSignature,
+  // validateSignature,
 } from "../middleware";
 import { constructKey, getError, MAX_BATCH_SIZE, REDIS_TIMEOUT } from "../utils";
 import { DataInsertType, DBTableName, SetDataInput } from "../utils/interfaces";
@@ -50,6 +50,27 @@ const validateSetData = Joi.object({
   }).required(),
   signature: Joi.string().max(88).required(),
 });
+
+async function getValueByKey(table: string, key: string, consistencyLevel: types.consistencies): Promise<string> {
+  const result = await cassandra.execute(`SELECT * FROM ${table} WHERE key = ? ORDER BY created_at DESC LIMIT 1`, [key], {
+    prepare: true,
+    consistency: consistencyLevel,
+  });
+  if (result.rowLength > 0) {
+    const { value } = result.first();
+    return value;
+  }
+  return "";
+}
+
+async function setValueForKey(table: string, key: string, value: string, consistencyLevel: types.consistencies): Promise<void> {
+  log.info("table", table);
+  const result = await cassandra.execute(`INSERT INTO ${table} (key, created_at, value) VALUES (?, NOW(),?)`, [key, value], {
+    prepare: true,
+    consistency: consistencyLevel,
+  });
+  if (!result.wasApplied()) throw new Error("fail to write data to Cassandra");
+}
 
 router.post(
   "/get",
@@ -85,11 +106,11 @@ router.post(
       //   value = data?.value || "";
       // }
 
-      const result = await cassandra.execute(`SELECT * FROM ${tableName} WHERE key = ?`, [key], {
-        prepare: true,
-        consistency: types.consistencies.all,
-      });
-      const { value } = result.first();
+      // read from local_one first, then read with quorum
+      let value = await getValueByKey(tableName, key, types.consistencies.localOne);
+      if (!value) {
+        value = await getValueByKey(tableName, key, types.consistencies.quorum);
+      }
       return res.json({ message: value });
     } catch (error) {
       log.error("get metadata failed", error);
@@ -104,8 +125,8 @@ router.post(
     [Segments.BODY]: validateSetData,
   }),
   validateNamespace,
-  validateDataTimeStamp,
-  validateSignature,
+  // validateDataTimeStamp,
+  // validateSignature,
   async (req, res) => {
     try {
       const {
@@ -131,11 +152,9 @@ router.post(
       // } catch (error) {
       //   log.warn("redis set failed", error);
       // }
-      await cassandra.execute(`INSERT INTO ${tableName} (key, value) VALUES (?,?)`, [key, data], {
-        prepare: true,
-        consistency: types.consistencies.all,
-      });
 
+      // write with CL=quorum
+      setValueForKey(tableName, key, data, types.consistencies.quorum);
       const ipfsResult = await getHashAndWriteAsync({ [tableName]: [{ key, value: data }] });
       return res.json({ message: ipfsResult });
     } catch (error) {

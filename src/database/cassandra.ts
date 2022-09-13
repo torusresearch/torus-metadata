@@ -5,7 +5,7 @@ const { CASSANDRA_HOSTNAME, CASSANDRA_KEYSPACE, CASSANDRA_USER, CASSANDRA_PASSWO
 
 const client = new Client({
   contactPoints: [CASSANDRA_HOSTNAME],
-  // localDataCenter: "datacenter1",
+  localDataCenter: "datacenter1",
   keyspace: CASSANDRA_KEYSPACE,
   credentials: {
     username: CASSANDRA_USER,
