@@ -7,22 +7,22 @@ import express, { Request, Response } from "express";
 import log from "loglevel";
 import multer from "multer";
 
-import cassandra from "../database/cassandra";
+import { getKey, setKey, setKeysInBatch } from "../database/cassandra";
 import { getHashAndWriteAsync } from "../database/ipfs";
-import { knexRead, knexWrite } from "../database/knex";
-import redis from "../database/redis";
+// import { knexRead, knexWrite } from "../database/knex";
+// import redis from "../database/redis";
 import {
   serializeStreamBody,
-  // validateDataTimeStamp,
+  // validateDataTimeStamp, //TEMP FOR TESTING
   validateGetOrSetNonceSetInput,
   validateGetOrSetNonceSignature,
   validateLoopSignature,
   validateMetadataLoopInput,
   validateNamespace,
   validateNamespaceLoop,
-  // validateSignature,
+  // validateSignature, //TEMP FOR TESTING
 } from "../middleware";
-import { constructKey, getError, MAX_BATCH_SIZE, REDIS_TIMEOUT } from "../utils";
+import { constructKey, getError, MAX_BATCH_SIZE } from "../utils";
 import { DataInsertType, DBTableName, SetDataInput } from "../utils/interfaces";
 
 const upload = multer({
@@ -50,27 +50,6 @@ const validateSetData = Joi.object({
   }).required(),
   signature: Joi.string().max(88).required(),
 });
-
-async function getValueByKey(table: string, key: string, consistencyLevel: types.consistencies): Promise<string> {
-  const result = await cassandra.execute(`SELECT * FROM ${table} WHERE key = ? ORDER BY created_at DESC LIMIT 1`, [key], {
-    prepare: true,
-    consistency: consistencyLevel,
-  });
-  if (result.rowLength > 0) {
-    const { value } = result.first();
-    return value;
-  }
-  return "";
-}
-
-async function setValueForKey(table: string, key: string, value: string, consistencyLevel: types.consistencies): Promise<void> {
-  log.info("table", table);
-  const result = await cassandra.execute(`INSERT INTO ${table} (key, created_at, value) VALUES (?, NOW(),?)`, [key, value], {
-    prepare: true,
-    consistency: consistencyLevel,
-  });
-  if (!result.wasApplied()) throw new Error("fail to write data to Cassandra");
-}
 
 router.post(
   "/get",
@@ -107,9 +86,9 @@ router.post(
       // }
 
       // read from local_one first, then read with quorum
-      let value = await getValueByKey(tableName, key, types.consistencies.localOne);
+      let value = await getKey(tableName, key, types.consistencies.localOne);
       if (!value) {
-        value = await getValueByKey(tableName, key, types.consistencies.quorum);
+        value = await getKey(tableName, key, types.consistencies.quorum);
       }
       return res.json({ message: value });
     } catch (error) {
@@ -146,7 +125,6 @@ router.post(
       //   key,
       //   value: data,
       // });
-
       // try {
       //   await redis.setEx(key, REDIS_TIMEOUT, data);
       // } catch (error) {
@@ -154,7 +132,7 @@ router.post(
       // }
 
       // write with CL=quorum
-      setValueForKey(tableName, key, data, types.consistencies.quorum);
+      await setKey(tableName, key, data, types.consistencies.quorum);
       const ipfsResult = await getHashAndWriteAsync({ [tableName]: [{ key, value: data }] });
       return res.json({ message: ipfsResult });
     } catch (error) {
@@ -190,25 +168,24 @@ router.post(
         return acc;
       }, {} as Record<keyof DBTableName, DataInsertType[]>);
 
-      await Promise.all(Object.keys(requiredData).map((x) => knexWrite(x).insert(requiredData[x])));
-
-      const redisData = shares.reduce((acc: Record<string, string>, x) => {
-        const {
-          namespace,
-          pub_key_X: pubKeyX,
-          pub_key_Y: pubKeyY,
-          set_data: { data },
-        } = x;
-        const key = constructKey(pubKeyX, pubKeyY, namespace);
-        acc[key] = data;
-        return acc;
-      }, {} as Record<string, string>);
-
-      try {
-        await Promise.all(Object.keys(redisData).map((x) => redis.setEx(x, REDIS_TIMEOUT, redisData[x])));
-      } catch (error) {
-        log.warn("redis bulk set failed", error);
-      }
+      // await Promise.all(Object.keys(requiredData).map((x) => knexWrite(x).insert(requiredData[x])));
+      // const redisData = shares.reduce((acc: Record<string, string>, x) => {
+      //   const {
+      //     namespace,
+      //     pub_key_X: pubKeyX,
+      //     pub_key_Y: pubKeyY,
+      //     set_data: { data },
+      //   } = x;
+      //   const key = constructKey(pubKeyX, pubKeyY, namespace);
+      //   acc[key] = data;
+      //   return acc;
+      // }, {} as Record<string, string>);
+      // try {
+      //   await Promise.all(Object.keys(redisData).map((x) => redis.setEx(x, REDIS_TIMEOUT, redisData[x])));
+      // } catch (error) {
+      //   log.warn("redis bulk set failed", error);
+      // }
+      await setKeysInBatch(requiredData, types.consistencies.quorum); // TODO
 
       const ipfsResult = await getHashAndWriteAsync(requiredData);
       return res.json({ message: ipfsResult });
@@ -220,13 +197,13 @@ router.post(
 );
 
 // data must be array of arrays with each array lesser than MAX_BATCH_SIZE
-async function insertDataInBatchForTable(tableName: DBTableName, data: DataInsertType[][]) {
-  return knexWrite.transaction(async (trx) => {
-    for (const batch of data) {
-      await knexWrite(tableName).insert(batch).transacting(trx);
-    }
-  });
-}
+// async function insertDataInBatchForTable(tableName: DBTableName, data: DataInsertType[][]) {
+//   return knexWrite.transaction(async (trx) => {
+//     for (const batch of data) {
+//       await knexWrite(tableName).insert(batch).transacting(trx);
+//     }
+//   });
+// }
 
 router.post(
   "/bulk_set_stream",
@@ -280,13 +257,12 @@ router.post(
         }
       }
 
-      await Promise.all(Object.keys(totalBatchesPerTable).map((x: DBTableName) => insertDataInBatchForTable(x, totalBatchesPerTable[x])));
-
-      try {
-        await Promise.all(Object.keys(redisData).map((x) => redis.setEx(x, REDIS_TIMEOUT, redisData[x])));
-      } catch (error) {
-        log.warn("redis bulk set failed", error);
-      }
+      // await Promise.all(Object.keys(totalBatchesPerTable).map((x: DBTableName) => insertDataInBatchForTable(x, totalBatchesPerTable[x])));
+      // try {
+      //   await Promise.all(Object.keys(redisData).map((x) => redis.setEx(x, REDIS_TIMEOUT, redisData[x])));
+      // } catch (error) {
+      //   log.warn("redis bulk set failed", error);
+      // }
 
       const requiredData = Object.keys(totalBatchesPerTable).reduce((acc: Record<DBTableName, DataInsertType[]>, x: DBTableName) => {
         const batch = totalBatchesPerTable[x];
@@ -318,19 +294,19 @@ if (process.env.NODE_ENV === "development") {
     async (req, res) => {
       try {
         const { pub_key_X: pubKeyX, pub_key_Y: pubKeyY, tableName }: { pub_key_X: string; pub_key_Y: string; tableName: string } = req.body;
-
         const key = constructKey(pubKeyX, pubKeyY, NAMESPACES.nonceV2);
 
-        await knexWrite(tableName).insert({
-          key,
-          value: "<v1>",
-        });
+        // await knexWrite(tableName).insert({
+        //   key,
+        //   value: "<v1>",
+        // });
 
-        try {
-          await redis.setEx(key, REDIS_TIMEOUT, "<v1>");
-        } catch (error) {
-          log.warn("redis set failed", error);
-        }
+        // try {
+        //   await redis.setEx(key, REDIS_TIMEOUT, "<v1>");
+        // } catch (error) {
+        //   log.warn("redis set failed", error);
+
+        await setKey(tableName, key, "<v1>", types.consistencies.quorum);
 
         return res.json({});
       } catch (error) {
@@ -383,13 +359,10 @@ router.post(
       //   // i want a nil value here
       //   oldValue = oldRetrievedNonce?.value || undefined;
       // }
-
-      const result = await cassandra.execute(`SELECT * FROM ${tableName} WHERE key = ?`, [oldKey], {
-        prepare: true,
-        consistency: types.consistencies.localQuorum,
-      });
-      const { value } = result.first();
-
+      let value = await getKey(tableName, oldKey, types.consistencies.localOne);
+      if (!value) {
+        value = await getKey(tableName, oldKey, types.consistencies.quorum);
+      }
       if (value) {
         return res.json({ typeOfUser: "v1", nonce: value });
       }
@@ -402,33 +375,40 @@ router.post(
       let pubNonce: string | { x: string; y: string };
       let ipfs: string[];
 
-      try {
-        nonce = await redis.get(key);
-      } catch (error) {
-        log.warn("redis get failed", error);
-      }
-
+      // try {
+      //   nonce = await redis.get(key);
+      // } catch (error) {
+      //   log.warn("redis get failed", error);
+      // }
+      // if (!nonce) {
+      //   const newRetrievedNonce = await knexRead(tableName).where({ key }).orderBy("created_at", "desc").orderBy("id", "desc").first();
+      //   nonce = newRetrievedNonce?.value || undefined;
+      // }
+      nonce = await getKey(tableName, key, types.consistencies.localOne);
       if (!nonce) {
-        const newRetrievedNonce = await knexRead(tableName).where({ key }).orderBy("created_at", "desc").orderBy("id", "desc").first();
-        nonce = newRetrievedNonce?.value || undefined;
+        nonce = await getKey(tableName, key, types.consistencies.quorum);
       }
 
       if (nonce === "<v1>" || (!nonce && data !== "getOrSetNonce")) return res.json({ typeOfUser: "v1" }); // This is a v1 user who didn't have a nonce before we rolled out v2, if he sets his nonce in the future, this value will be ignored
 
       if (nonce) {
-        try {
-          pubNonce = await redis.get(keyForPubNonce);
-        } catch (error) {
-          log.warn("redis get failed", error);
-        }
+        // try {
+        //   pubNonce = await redis.get(keyForPubNonce);
+        // } catch (error) {
+        //   log.warn("redis get failed", error);
+        // }
+        // if (!pubNonce) {
+        //   const retrievedPubNonce = await knexRead(tableName)
+        //     .where({ key: keyForPubNonce })
+        //     .orderBy("created_at", "desc")
+        //     .orderBy("id", "desc")
+        //     .first();
+        //   pubNonce = retrievedPubNonce?.value;
+        // }
 
+        pubNonce = await getKey(tableName, keyForPubNonce, types.consistencies.localOne);
         if (!pubNonce) {
-          const retrievedPubNonce = await knexRead(tableName)
-            .where({ key: keyForPubNonce })
-            .orderBy("created_at", "desc")
-            .orderBy("id", "desc")
-            .first();
-          pubNonce = retrievedPubNonce?.value;
+          pubNonce = await getKey(tableName, keyForPubNonce, types.consistencies.quorum);
         }
 
         if (!pubNonce) throw new Error("pub nonce value is null");
@@ -447,16 +427,23 @@ router.post(
 
         // We just created new nonce and pub nonce above, write to db
         const pubNonceStr = JSON.stringify(pubNonce);
-        await insertDataInBatchForTable(tableName, [
-          [
-            { key, value: nonce },
-            { key: keyForPubNonce, value: pubNonceStr },
-          ],
-        ]);
+        // await insertDataInBatchForTable(tableName, [
+        //   [
+        //     { key, value: nonce },
+        //     { key: keyForPubNonce, value: pubNonceStr },
+        //   ],
+        // ]);
+        const batch = {} as Record<keyof DBTableName, DataInsertType[]>;
+        batch[tableName] = [
+          { key, value: nonce },
+          { key: keyForPubNonce, value: pubNonceStr },
+        ];
+        await setKeysInBatch(batch, types.consistencies.quorum);
+
         [ipfs] = await Promise.all([
           getHashAndWriteAsync({ [tableName]: [{ key, value: pubNonceStr }] }),
-          redis.setEx(key, REDIS_TIMEOUT, nonce).catch((error) => log.warn("redis set failed", error)),
-          redis.setEx(keyForPubNonce, REDIS_TIMEOUT, pubNonceStr).catch((error) => log.warn("redis set failed", error)),
+          // redis.setEx(key, REDIS_TIMEOUT, nonce).catch((error) => log.warn("redis set failed", error)),
+          // redis.setEx(keyForPubNonce, REDIS_TIMEOUT, pubNonceStr).catch((error) => log.warn("redis set failed", error)),
         ]);
       }
 
