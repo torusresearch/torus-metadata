@@ -3,11 +3,12 @@ import log from "loglevel";
 
 import { DataInsertType, DBTableName } from "../utils/interfaces";
 
-const { CASSANDRA_HOSTNAME, CASSANDRA_KEYSPACE, CASSANDRA_USER, CASSANDRA_PASSWORD } = process.env;
+const { CASSANDRA_HOSTS, CASSANDRA_KEYSPACE, CASSANDRA_LOCAL_DATACENTER, CASSANDRA_USER, CASSANDRA_PASSWORD } = process.env;
+const hosts = (CASSANDRA_HOSTS ?? "").split(",");
 
 const client = new Client({
-  contactPoints: [CASSANDRA_HOSTNAME],
-  localDataCenter: "datacenter1",
+  contactPoints: hosts,
+  localDataCenter: CASSANDRA_LOCAL_DATACENTER,
   keyspace: CASSANDRA_KEYSPACE,
   credentials: {
     username: CASSANDRA_USER,

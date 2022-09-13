@@ -40,13 +40,10 @@
     "helmet": "^5.1.0",
     "js-sha3": "^0.8.0",
     "json-stable-stringify": "^1.0.1",
-    "knex": "^2.1.0",
-    "knex-on-duplicate-update": "^2.3.0",
     "loglevel": "^1.8.0",
     "morgan": "^1.10.0",
     "multer": "^1.4.4",
     "multihashing-async": "^2.1.4",
-    "mysql": "^2.18.1",
     "redis": "^4.1.0",
     "socket.io": "^4.5.1"
   },
