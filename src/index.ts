@@ -19,7 +19,7 @@ dotenv.config({
 });
 
 // bring all routes here
-import { setupIoListeners, setupSocketIo, setupSocketMiddleware } from "./database/socket";
+// import { setupIoListeners, setupSocketIo, setupSocketMiddleware } from "./database/socket";
 import routes from "./routes";
 import { registerSentry, registerSentryErrorHandler } from "./utils/sentry";
 
@@ -29,8 +29,8 @@ const http = createServer(app);
 app.set("trust proxy", 1);
 
 registerSentry(app);
-const io = setupSocketIo(http);
-setupIoListeners(io);
+// const io = setupSocketIo(http);
+// setupIoListeners(io);
 
 http.keepAliveTimeout = 301 * 1000;
 http.headersTimeout = 305 * 1000;
@@ -54,8 +54,8 @@ app.use(helmet()); // middleware which adds http headers
 app.use(express.urlencoded({ extended: false, limit: "20mb" })); // middleware which parses body
 app.use(express.json({ limit: "20mb" })); // converts body to json
 
-app.use(setupSocketMiddleware(io));
-app.use("/", routes);
+// app.use(setupSocketMiddleware(io));
+app.use("/metadata", routes);
 app.use(errors());
 
 registerSentryErrorHandler(app);
