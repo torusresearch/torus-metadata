@@ -23,7 +23,7 @@ export const constructKey = (pubKeyX: string, pubKeyY: string, namespace?: strin
 
 export const randomID = () => `${Math.random().toString(36).substring(2, 9)}`;
 
-export const REDIS_TIMEOUT = 10; // seconds
+export const REDIS_TIMEOUT = 60; // seconds
 export const REDIS_LOCK_TIMEOUT = 60;
 export const MAX_BATCH_SIZE = 60 * 1024 * 1024; // 60MB
 
