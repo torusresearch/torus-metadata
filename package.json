@@ -14,7 +14,7 @@
     "migrate:down": "npx knex migrate:down --knexfile ./src/database/knexfile.ts",
     "lint:ts": "eslint --fix 'src/**/*.ts'",
     "prepare": "husky install",
-    "test": "cross-env NODE_ENV=development LOG_DEBUG=yes mocha",
+    "test": "cross-env NODE_ENV=development METADATA_ENV=development LOG_DEBUG=yes mocha",
     "test:ci": "docker-compose -f docker-compose-ci.yml up --build --abort-on-container-exit --exit-code-from torus-metadata",
     "down:ci": "docker-compose -f docker-compose-ci.yml down"
   },

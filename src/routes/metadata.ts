@@ -272,7 +272,7 @@ router.post(
   }
 );
 
-if (process.env.NODE_ENV === "development") {
+if (process.env.METADATA_ENV === "development") {
   // API for dev env only to test if v1 continue to work after deploying v2
   router.post(
     "/set_nonce",
