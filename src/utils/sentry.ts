@@ -47,7 +47,7 @@ export const registerSentryErrorHandler = (app: Express): void => {
       Sentry.Handlers.errorHandler({
         shouldHandleError(error) {
           // Capture all 404 and 500 errors
-          return error.status >= 400;
+          return typeof error.status === "number" ? error.status >= 400 : Number(error.status) >= 400;
         },
       })
     );
