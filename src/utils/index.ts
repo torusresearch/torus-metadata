@@ -6,10 +6,12 @@ import { LockDataInput, SetDataInput } from "./interfaces";
 
 const elliptic = new EC("secp256k1");
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function isErrorObj(err: any): boolean {
   return err && err.stack && err.message;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const getError = (error: any) => {
   if (isErrorObj(error)) return { message: error.message };
   return error;
