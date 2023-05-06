@@ -35,11 +35,10 @@ jobs:
 
       - name: Run tests
         run: npm run test:ci
+
   deployToSing:
     name: Deploy
     runs-on: ubuntu-latest
-    environment:
-      name: ECR_PUSH
 
     needs: test
 
