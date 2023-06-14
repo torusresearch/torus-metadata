@@ -36,6 +36,7 @@ export type DataUpdateType = Omit<Data, "id" | "created_at" | "updated_at" | "ke
 export interface SetDataData {
   data: string;
   timestamp: string;
+  operation?: string;
 }
 
 export interface SetDataInput {
@@ -45,6 +46,7 @@ export interface SetDataInput {
   set_data: SetDataData;
   tableName?: DBTableName;
   signature: string;
+  isSQL: boolean;
 }
 
 export interface LockDataInput {

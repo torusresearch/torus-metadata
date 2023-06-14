@@ -21,6 +21,16 @@ services:
       - ./.env.development
     ports:
       - "3306:3306"
+  cassandra:
+    restart: always
+    # platform: linux/x86_64
+    build:
+      context: .
+      dockerfile: Dockerfile.dev.cassandra
+    env_file:
+      - ./.env.development
+    ports:
+      - 9042:9042
   torus-metadata:
     restart: always
     depends_on:

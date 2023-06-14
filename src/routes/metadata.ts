@@ -1,11 +1,13 @@
 /* eslint-disable security/detect-object-injection */
 import { generatePrivate } from "@toruslabs/eccrypto";
+import { types } from "cassandra-driver";
 import { celebrate, Joi, Segments } from "celebrate";
 import { ec as EC } from "elliptic";
 import express, { Request, Response } from "express";
 import log from "loglevel";
 import multer from "multer";
 
+import { getMetadata, setMetadata, setMetadataInBulk, setMetadataInMultiTables } from "../cassandra/cassandra";
 import { getHashAndWriteAsync } from "../database/ipfs";
 import { knexRead, knexWrite } from "../database/knex";
 import redis from "../database/redis";
@@ -20,7 +22,7 @@ import {
   validateNamespaceLoop,
   validateSignature,
 } from "../middleware";
-import { constructKey, getError, MAX_BATCH_SIZE, REDIS_TIMEOUT } from "../utils";
+import { constructKey, getError, getTraceIdLogMsg, MAX_BATCH_SIZE, REDIS_TIMEOUT } from "../utils";
 import { DataInsertType, DBTableName, SetDataInput } from "../utils/interfaces";
 
 const upload = multer({
@@ -34,9 +36,11 @@ const router = express.Router();
 const NAMESPACES = {
   nonceV2: "noncev2",
   pubNonceV2: "pub_noncev2",
+  private_nonce: "private_nonce",
+  public_nonce: "public_nonce",
 };
 
-const RESERVED_NAMESPACES = [NAMESPACES.nonceV2, NAMESPACES.pubNonceV2];
+const RESERVED_NAMESPACES = [NAMESPACES.nonceV2, NAMESPACES.pubNonceV2, NAMESPACES.private_nonce, NAMESPACES.public_nonce];
 
 const validateSetData = Joi.object({
   namespace: Joi.string().max(128),
@@ -47,6 +51,7 @@ const validateSetData = Joi.object({
     timestamp: Joi.string().hex().required(),
   }).required(),
   signature: Joi.string().max(88).required(),
+  isSQL: Joi.bool().optional(),
 });
 
 router.post(
@@ -72,6 +77,9 @@ router.post(
       }: { namespace?: string; pub_key_X: string; pub_key_Y: string; tableName?: DBTableName } = req.body;
       const key = constructKey(pubKeyX, pubKeyY, namespace);
       let value: string;
+      // read from new cassandra tables
+
+      // read from existing system redis + cassandra
       try {
         value = await redis.get(key);
       } catch (error) {
@@ -79,9 +87,18 @@ router.post(
       }
 
       if (!value) {
-        const data = await knexRead(tableName).where({ key }).orderBy("created_at", "desc").orderBy("id", "desc").first();
-        value = data?.value || "";
+        value = await getMetadata(tableName, key, types.consistencies.localQuorum);
+        log.info("newMetadata", value);
+        if (!value) {
+          const data = await knexRead(tableName).where({ key }).orderBy("created_at", "desc").orderBy("id", "desc").first();
+          value = data?.value || "";
+          log.info("oldMetadata", value);
+          // dump it to cassandra
+          // mark in cassandra as migrated in a new column in namespace table
+          // column_data - data_type = enum(new or legacy)
+        }
       }
+
       return res.json({ message: value });
     } catch (error) {
       log.error("get metadata failed", error);
@@ -99,6 +116,7 @@ router.post(
   validateDataTimeStamp,
   validateSignature,
   async (req, res) => {
+    // set data to cassandra server by default
     try {
       const {
         namespace = "",
@@ -106,6 +124,8 @@ router.post(
         pub_key_Y: pubKeyY,
         set_data: { data },
         tableName = "",
+        // todo: remove below variable
+        isSQL = false,
       }: SetDataInput = req.body;
 
       if (RESERVED_NAMESPACES.includes(namespace)) {
@@ -113,15 +133,20 @@ router.post(
       }
 
       const key = constructKey(pubKeyX, pubKeyY, namespace);
-      await knexWrite(tableName).insert({
-        key,
-        value: data,
-      });
-
-      try {
-        await redis.setEx(key, REDIS_TIMEOUT, data);
-      } catch (error) {
-        log.warn("redis set failed", error);
+      if (isSQL) {
+        await knexWrite(tableName).insert({
+          key,
+          value: data,
+        });
+        log.info("successfully written to mysql");
+        try {
+          await redis.setEx(key, REDIS_TIMEOUT, data);
+        } catch (error) {
+          log.warn("redis set failed", error);
+        }
+      } else {
+        log.info("successfully written to cassandra");
+        await setMetadata(tableName, key, data, types.consistencies.localQuorum);
       }
 
       const ipfsResult = await getHashAndWriteAsync({ [tableName]: [{ key, value: data }] });
@@ -159,8 +184,7 @@ router.post(
         return acc;
       }, {} as Record<keyof DBTableName, DataInsertType[]>);
 
-      await Promise.all(Object.keys(requiredData).map((x) => knexWrite(x).insert(requiredData[x])));
-
+      await setMetadataInMultiTables(requiredData, types.consistencies.localQuorum);
       const redisData = shares.reduce((acc: Record<string, string>, x) => {
         const {
           namespace,
@@ -172,7 +196,6 @@ router.post(
         acc[key] = data;
         return acc;
       }, {} as Record<string, string>);
-
       try {
         await Promise.all(Object.keys(redisData).map((x) => redis.setEx(x, REDIS_TIMEOUT, redisData[x])));
       } catch (error) {
@@ -187,15 +210,6 @@ router.post(
     }
   }
 );
-
-// data must be array of arrays with each array lesser than MAX_BATCH_SIZE
-async function insertDataInBatchForTable(tableName: DBTableName, data: DataInsertType[][]) {
-  return knexWrite.transaction(async (trx) => {
-    for (const batch of data) {
-      await knexWrite(tableName).insert(batch).transacting(trx);
-    }
-  });
-}
 
 router.post(
   "/bulk_set_stream",
@@ -249,8 +263,14 @@ router.post(
         }
       }
 
-      await Promise.all(Object.keys(totalBatchesPerTable).map((x: DBTableName) => insertDataInBatchForTable(x, totalBatchesPerTable[x])));
+      // await Promise.all(Object.keys(totalBatchesPerTable).map((x: DBTableName) => insertDataInBatchForTable(x, totalBatchesPerTable[x])));
 
+      // write data in bulk to Cassandra with CL=LOCAL_QUORUM
+      await Promise.all(
+        Object.keys(totalBatchesPerTable).map((table: DBTableName) =>
+          setMetadataInBulk(table, totalBatchesPerTable[table], types.consistencies.localQuorum)
+        )
+      );
       try {
         await Promise.all(Object.keys(redisData).map((x) => redis.setEx(x, REDIS_TIMEOUT, redisData[x])));
       } catch (error) {
@@ -310,6 +330,7 @@ if (process.env.METADATA_ENV === "development") {
   );
 }
 
+// todo change implementation
 router.post(
   "/get_or_set_nonce",
   celebrate({
@@ -329,78 +350,49 @@ router.post(
   validateNamespace,
   async (req, res) => {
     try {
-      const {
-        pub_key_X: pubKeyX,
-        pub_key_Y: pubKeyY,
-        set_data: { data },
-        namespace: oldNamespace,
-        tableName,
-      }: SetDataInput = req.body;
+      const { pub_key_X: pubKeyX, pub_key_Y: pubKeyY, tableName, set_data }: SetDataInput = req.body;
 
-      const oldKey = constructKey(pubKeyX, pubKeyY, oldNamespace);
+      const key = constructKey(pubKeyX, pubKeyY, NAMESPACES.private_nonce);
+      const keyForPubNonce = constructKey(pubKeyX, pubKeyY, NAMESPACES.public_nonce);
 
-      // check if it already exists
-      let oldValue: string;
-      try {
-        oldValue = await redis.get(oldKey);
-      } catch (error) {
-        log.warn("redis get failed", error);
-      }
-
-      if (!oldValue) {
-        const oldRetrievedNonce = await knexRead(tableName).where({ key: oldKey }).orderBy("created_at", "desc").orderBy("id", "desc").first();
-        // i want a nil value here
-        oldValue = oldRetrievedNonce?.value || undefined;
-      }
-
-      if (oldValue) {
-        return res.json({ typeOfUser: "v1", nonce: oldValue });
-      }
-
-      const key = constructKey(pubKeyX, pubKeyY, NAMESPACES.nonceV2);
-      const keyForPubNonce = constructKey(pubKeyX, pubKeyY, NAMESPACES.pubNonceV2);
-
-      // if not check if v2 has been created before
-      let nonce: string;
       let pubNonce: string | { x: string; y: string };
       let ipfs: string[];
 
-      try {
-        nonce = await redis.get(key);
-      } catch (error) {
-        log.warn("redis get failed", error);
-      }
+      // read data from Cassandra with CL=LOCAL_QUORUM
+      let nonce = await getMetadata(tableName, key, types.consistencies.localQuorum);
 
-      if (!nonce) {
-        const newRetrievedNonce = await knexRead(tableName).where({ key }).orderBy("created_at", "desc").orderBy("id", "desc").first();
-        nonce = newRetrievedNonce?.value || undefined;
-      }
-
-      if (nonce === "<v1>" || (!nonce && data !== "getOrSetNonce")) return res.json({ typeOfUser: "v1" }); // This is a v1 user who didn't have a nonce before we rolled out v2, if he sets his nonce in the future, this value will be ignored
-
+      // its existing user
       if (nonce) {
-        try {
-          pubNonce = await redis.get(keyForPubNonce);
-        } catch (error) {
-          log.warn("redis get failed", error);
-        }
-
-        if (!pubNonce) {
-          const retrievedPubNonce = await knexRead(tableName)
-            .where({ key: keyForPubNonce })
-            .orderBy("created_at", "desc")
-            .orderBy("id", "desc")
-            .first();
-          pubNonce = retrievedPubNonce?.value;
-        }
+        // read data from Cassandra with CL=LOCAL_QUORUM
+        pubNonce = await getMetadata(tableName, keyForPubNonce, types.consistencies.localQuorum);
 
         if (!pubNonce) throw new Error("pub nonce value is null");
         pubNonce = JSON.parse(pubNonce as string);
       }
 
-      // its a new v2 user, lets set his nonce
-      if (!nonce) {
-        nonce = generatePrivate().toString("hex");
+      if (set_data.operation === "getNonce") {
+        const returnResponse = {
+          upgraded: nonce === "<deleted>",
+          pubNonce,
+          ipfs,
+          nonce: undefined,
+        };
+        if (!returnResponse.upgraded) {
+          // if account is 1/1 return nonce
+          returnResponse.nonce = nonce;
+        }
+        log.info(`Returning response to request ${getTraceIdLogMsg(req)}`, JSON.stringify(returnResponse));
+        return res.json(returnResponse);
+      }
+
+      // allow new nonce but only when user is authenticated.
+      // this is required for import key scenarios when some nodes fails to respond
+      // and user tries again.
+      const newNonce = set_data.data;
+      // its a new user or some old user trying to override nonce, lets set his nonce
+      // allow override if user provides a valid auth sig
+      if (!nonce || (newNonce && !res.locals.noValidSig)) {
+        nonce = newNonce || generatePrivate().toString("hex");
 
         const unformattedPubNonce = elliptic.keyFromPrivate(nonce).getPublic();
         pubNonce = {
@@ -410,30 +402,30 @@ router.post(
 
         // We just created new nonce and pub nonce above, write to db
         const pubNonceStr = JSON.stringify(pubNonce);
-        await insertDataInBatchForTable(tableName, [
+
+        // write data in bulk to Cassandra with CL=LOCAL_QUORUM
+        const batch: DataInsertType[][] = [
           [
             { key, value: nonce },
             { key: keyForPubNonce, value: pubNonceStr },
           ],
-        ]);
-        [ipfs] = await Promise.all([
-          getHashAndWriteAsync({ [tableName]: [{ key, value: pubNonceStr }] }),
-          redis.setEx(key, REDIS_TIMEOUT, nonce).catch((error) => log.warn("redis set failed", error)),
-          redis.setEx(keyForPubNonce, REDIS_TIMEOUT, pubNonceStr).catch((error) => log.warn("redis set failed", error)),
-        ]);
+        ];
+        await setMetadataInBulk(tableName, batch, types.consistencies.localQuorum);
+
+        ipfs = await getHashAndWriteAsync({ [tableName]: [{ key, value: pubNonceStr }] });
       }
 
       const returnResponse = {
-        typeOfUser: "v2",
         upgraded: nonce === "<deleted>",
         pubNonce,
         ipfs,
         nonce: undefined,
       };
-      if (!returnResponse.upgraded && !res.locals.noValidSig) {
-        // if account is 1/1 and there's a valid sig, return nonce
+      if (!returnResponse.upgraded) {
+        // if account is 1/1 return nonce
         returnResponse.nonce = nonce;
       }
+      log.info(`Returning response to request ${getTraceIdLogMsg(req)}`, JSON.stringify(returnResponse));
       return res.json(returnResponse);
     } catch (error) {
       log.error("getOrSetNonce failed", error);

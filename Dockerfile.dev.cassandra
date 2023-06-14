@@ -1,0 +1,8 @@
+FROM cassandra:4
+
+ENV CASSANDRA_KEYSPACE metadata
+
+COPY --chmod=0755 entrypoint-wrap.sh /entrypoint-wrap.sh
+
+ENTRYPOINT ["/entrypoint-wrap.sh"]
+CMD ["cassandra", "-f"]
