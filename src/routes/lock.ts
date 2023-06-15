@@ -2,7 +2,7 @@ import { celebrate, Joi, Segments } from "celebrate";
 import express, { Request, Response } from "express";
 import log from "loglevel";
 
-import redis from "../database/redis";
+import redis from "../database/mysql/redis";
 import { validateLockData } from "../middleware";
 import { getError, randomID, REDIS_LOCK_TIMEOUT } from "../utils";
 
@@ -28,6 +28,7 @@ router.post(
   async (req: Request, res: Response) => {
     const { key: pubKey }: { key: string } = req.body;
     try {
+      // need to change this to cassandra
       let value: string;
       try {
         value = await redis.get(pubKey);

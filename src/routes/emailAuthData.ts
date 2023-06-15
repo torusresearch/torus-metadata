@@ -2,7 +2,7 @@ import { celebrate, Joi, Segments } from "celebrate";
 import express from "express";
 import log from "loglevel";
 
-import redis from "../database/redis";
+import redis from "../database/mysql/redis";
 import { getError, REDIS_NAME_SPACE } from "../utils";
 
 const router = express.Router();

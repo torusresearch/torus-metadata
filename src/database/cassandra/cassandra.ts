@@ -1,7 +1,7 @@
 import { Client, types } from "cassandra-driver";
 import log from "loglevel";
 
-import { DataInsertType } from "../utils/interfaces";
+import { DataInsertType } from "../../utils/interfaces";
 
 const { CASSANDRA_HOSTS, CASSANDRA_KEYSPACE, CASSANDRA_LOCAL_DATACENTER, CASSANDRA_USER, CASSANDRA_PASSWORD } = process.env;
 const hosts = (CASSANDRA_HOSTS ?? "").split(",");

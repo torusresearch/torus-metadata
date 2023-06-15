@@ -4,7 +4,7 @@ import { Server as HttpServer } from "http";
 import log from "loglevel";
 import { Server } from "socket.io";
 
-import { REDIS_NAME_SPACE } from "../utils";
+import { REDIS_NAME_SPACE } from "../../utils";
 import redis from "./redis";
 
 export function setupSocketIo(http: HttpServer): Server {

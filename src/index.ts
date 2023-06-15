@@ -19,7 +19,7 @@ dotenv.config({
 });
 
 // bring all routes here
-import { setupIoListeners, setupSocketIo, setupSocketMiddleware } from "./database/socket";
+import { setupIoListeners, setupSocketIo, setupSocketMiddleware } from "./database/mysql/socket";
 import routes from "./routes";
 import { registerSentry, registerSentryErrorHandler } from "./utils/sentry";
 

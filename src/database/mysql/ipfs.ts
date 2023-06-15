@@ -2,7 +2,7 @@ import CID from "cids";
 import multihashing from "multihashing-async";
 import { TextEncoder } from "util";
 
-import { Data } from "../utils/interfaces";
+import { Data } from "../../utils/interfaces";
 
 export const getHashAndWriteAsync = async function (data: Record<string, Partial<Data>[]>): Promise<string[]> {
   // Get hash

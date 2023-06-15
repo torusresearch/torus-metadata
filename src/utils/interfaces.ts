@@ -46,7 +46,6 @@ export interface SetDataInput {
   set_data: SetDataData;
   tableName?: DBTableName;
   signature: string;
-  isSQL: boolean;
 }
 
 export interface LockDataInput {
