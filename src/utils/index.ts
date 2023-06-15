@@ -1,4 +1,5 @@
 import { ec as EC } from "elliptic";
+import { Request } from "express";
 import { keccak256 } from "js-sha3";
 import stringify from "json-stable-stringify";
 
@@ -45,4 +46,12 @@ export const isValidSignature = (data: SetDataInput) => {
 export const isValidLockSignature = (lockData: LockDataInput) => {
   const { key, signature, data } = lockData;
   return elliptic.verify(keccak256(stringify(data)), signature, Buffer.from(key, "hex"));
+};
+
+export const getTraceIdLogMsg = (req: Request): string => {
+  const traceId = req.get("x-web3-correlation-id");
+  if (traceId === "") {
+    return "";
+  }
+  return `traceID=${traceId}`;
 };

@@ -1,4 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 const cassandra = require("cassandra-driver");
 
 const { CASSANDRA_HOSTS, CASSANDRA_KEYSPACE, CASSANDRA_USER, CASSANDRA_PASSWORD } = process.env;

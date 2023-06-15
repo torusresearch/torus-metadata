@@ -3,8 +3,8 @@ import { celebrate, Joi, Segments } from "celebrate";
 import express, { Request, Response } from "express";
 import log from "loglevel";
 
-import { deleteKeyValue, getKeyValue, setKeyValue } from "../cassandra/cassandra";
-import redis from "../database/redis";
+import { deleteKeyValue, getKeyValue, setKeyValue } from "../database/cassandra/cassandra";
+import redis from "../database/mysql/redis";
 import { validateLockData } from "../middleware";
 import { getError, getTraceIdLogMsg, randomID, REDIS_LOCK_TIMEOUT } from "../utils";
 
