@@ -57,6 +57,7 @@
   "devDependencies": {
     "@tkey/storage-layer-torus": "^9.0.0",
     "@toruslabs/eslint-config-node": "^2.0.0",
+    "@types/cassandra-driver": "^4.2.0",
     "@types/compression": "^1.7.2",
     "@types/elliptic": "^6.4.14",
     "@types/express": "^4.17.17",

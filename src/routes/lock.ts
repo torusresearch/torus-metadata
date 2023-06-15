@@ -1,10 +1,14 @@
+import { types } from "cassandra-driver";
 import { celebrate, Joi, Segments } from "celebrate";
 import express, { Request, Response } from "express";
 import log from "loglevel";
 
-import redis from "../database/mysql/redis";
+import { deleteKeyValue, getKeyValue, setKeyValue } from "../cassandra/cassandra";
+import redis from "../database/redis";
 import { validateLockData } from "../middleware";
-import { getError, randomID, REDIS_LOCK_TIMEOUT } from "../utils";
+import { getError, getTraceIdLogMsg, randomID, REDIS_LOCK_TIMEOUT } from "../utils";
+
+const KEYVALUE_LOCK_TIMEOUT = 60;
 
 const router = express.Router();
 
@@ -30,19 +34,28 @@ router.post(
     try {
       // need to change this to cassandra
       let value: string;
+      let valueFromCassandra: string;
       try {
         value = await redis.get(pubKey);
+        valueFromCassandra = await getKeyValue(pubKey, types.consistencies.localQuorum);
       } catch (error) {
-        log.warn("redis get failed", error);
+        log.warn("redis or cassandra get failed", error);
       }
 
-      if (!value) {
+      if (value || valueFromCassandra) {
+        // Lock already exists in either cassandra or rad
+        return res.json({ status: 2 });
+      }
+
+      if (!value && !valueFromCassandra) {
+        // set lock with TTL using CL=LOCAL_QUORUM
         try {
           const id = randomID();
           await redis.setEx(pubKey, REDIS_LOCK_TIMEOUT, id);
+          await setKeyValue(pubKey, id, KEYVALUE_LOCK_TIMEOUT, types.consistencies.localQuorum);
           return res.json({ status: 1, id });
         } catch (error) {
-          log.warn("redis set failed", error);
+          log.warn("redis or cassandra set failed", error);
         }
       }
       return res.json({ status: 0 });
@@ -71,25 +84,49 @@ router.post(
       const { key, id }: { key: string; id: string } = req.body;
 
       let value: string;
+      let valueFromCassandra: string;
+      let successfullyDeletedFromRedis = false;
+      let successfullyDeletedFromCassandra = false;
+
       try {
         value = await redis.get(key);
+        valueFromCassandra = await getKeyValue(key, types.consistencies.localQuorum);
       } catch (error) {
-        log.warn("redis get failed", error);
+        log.warn("redis or cassandra get failed", error);
       }
 
-      if (!value) {
+      if (!value && !valueFromCassandra) {
         // No lock exists
         // Redis_timeout auto clear or no lock was ever created
         return res.json({ status: 0 });
       }
-      if (value === id) {
-        try {
+
+      try {
+        if (value === id) {
           await redis.del(key);
-          return res.json({ status: 1 });
-        } catch (error) {
-          log.warn("redis delete failed", error);
+          successfullyDeletedFromRedis = true;
+        } else {
+          successfullyDeletedFromRedis = true;
         }
+      } catch (error) {
+        log.warn("redis delete failed", error);
       }
+
+      try {
+        if (valueFromCassandra === id) {
+          await deleteKeyValue(key, types.consistencies.localQuorum);
+          successfullyDeletedFromCassandra = true;
+        } else {
+          successfullyDeletedFromCassandra = true;
+        }
+      } catch (error) {
+        log.warn("cassandra delete failed", error, getTraceIdLogMsg(req));
+      }
+
+      if (successfullyDeletedFromCassandra && successfullyDeletedFromRedis) {
+        return res.json({ status: 1 });
+      }
+
       return res.json({ status: 2 });
     } catch (error) {
       log.error("release lock failed", error);
