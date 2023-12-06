@@ -365,7 +365,7 @@ router.post(
       let pubNonce: string | { x: string; y: string };
       let ipfs: string[];
 
-      const getNonce = async (): Promise<string | undefined> => {
+      const getNonce = async (strongConsistency = false): Promise<string | undefined> => {
         let nonceVal: string;
         try {
           nonceVal = await redis.get(key);
@@ -373,13 +373,14 @@ router.post(
           log.warn("redis get failed", error);
         }
         if (!nonceVal) {
-          const newRetrievedNonce = await knexRead(tableName).where({ key }).orderBy("created_at", "desc").orderBy("id", "desc").first();
+          const knexClient = strongConsistency ? knexWrite : knexRead;
+          const newRetrievedNonce = await knexClient(tableName).where({ key }).orderBy("created_at", "desc").orderBy("id", "desc").first();
           nonceVal = newRetrievedNonce?.value || undefined;
         }
         return nonceVal;
       };
 
-      const getPubNonce = async (): Promise<string | undefined> => {
+      const getPubNonce = async (strongConsistency = false): Promise<string | undefined> => {
         let pubNonceVal: string;
         try {
           pubNonceVal = await redis.get(keyForPubNonce);
@@ -388,7 +389,8 @@ router.post(
         }
 
         if (!pubNonceVal) {
-          const retrievedPubNonce = await knexRead(tableName)
+          const knexClient = strongConsistency ? knexWrite : knexRead;
+          const retrievedPubNonce = await knexClient(tableName)
             .where({ key: keyForPubNonce })
             .orderBy("created_at", "desc")
             .orderBy("id", "desc")
@@ -414,9 +416,9 @@ router.post(
         const lock = await redlock.acquire([lockKey], 5000);
         try {
           // check if someone else has set it
-          nonce = await getNonce();
+          nonce = await getNonce(true);
           if (nonce) {
-            pubNonce = await getPubNonce();
+            pubNonce = await getPubNonce(true);
           } else {
             // create new nonce
             nonce = generatePrivate().toString("hex");
