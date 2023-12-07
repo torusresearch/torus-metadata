@@ -8,7 +8,7 @@ import multer from "multer";
 
 import { getHashAndWriteAsync } from "../database/ipfs";
 import { knexRead, knexWrite } from "../database/knex";
-import redis from "../database/redis";
+import redis, { redlock } from "../database/redis";
 import {
   serializeStreamBody,
   validateDataTimeStamp,
@@ -365,62 +365,88 @@ router.post(
       let pubNonce: string | { x: string; y: string };
       let ipfs: string[];
 
-      try {
-        nonce = await redis.get(key);
-      } catch (error) {
-        log.warn("redis get failed", error);
-      }
-
-      if (!nonce) {
-        const newRetrievedNonce = await knexRead(tableName).where({ key }).orderBy("created_at", "desc").orderBy("id", "desc").first();
-        nonce = newRetrievedNonce?.value || undefined;
-      }
-
-      if (nonce === "<v1>" || (!nonce && data !== "getOrSetNonce")) return res.json({ typeOfUser: "v1" }); // This is a v1 user who didn't have a nonce before we rolled out v2, if he sets his nonce in the future, this value will be ignored
-
-      if (nonce) {
+      const getNonce = async (strongConsistency = false): Promise<string | undefined> => {
+        let nonceVal: string;
         try {
-          pubNonce = await redis.get(keyForPubNonce);
+          nonceVal = await redis.get(key);
+        } catch (error) {
+          log.warn("redis get failed", error);
+        }
+        if (!nonceVal) {
+          const knexClient = strongConsistency ? knexWrite : knexRead;
+          const newRetrievedNonce = await knexClient(tableName).where({ key }).orderBy("created_at", "desc").orderBy("id", "desc").first();
+          nonceVal = newRetrievedNonce?.value || undefined;
+        }
+        return nonceVal;
+      };
+
+      const getPubNonce = async (strongConsistency = false): Promise<string | undefined> => {
+        let pubNonceVal: string;
+        try {
+          pubNonceVal = await redis.get(keyForPubNonce);
         } catch (error) {
           log.warn("redis get failed", error);
         }
 
-        if (!pubNonce) {
-          const retrievedPubNonce = await knexRead(tableName)
+        if (!pubNonceVal) {
+          const knexClient = strongConsistency ? knexWrite : knexRead;
+          const retrievedPubNonce = await knexClient(tableName)
             .where({ key: keyForPubNonce })
             .orderBy("created_at", "desc")
             .orderBy("id", "desc")
             .first();
-          pubNonce = retrievedPubNonce?.value;
+          pubNonceVal = retrievedPubNonce?.value;
         }
 
-        if (!pubNonce) throw new Error("pub nonce value is null");
-        pubNonce = JSON.parse(pubNonce as string);
+        if (!pubNonceVal) throw new Error("pub nonce value is null");
+        return JSON.parse(pubNonceVal as string);
+      };
+
+      nonce = await getNonce();
+
+      if (nonce === "<v1>" || (!nonce && data !== "getOrSetNonce")) return res.json({ typeOfUser: "v1" }); // This is a v1 user who didn't have a nonce before we rolled out v2, if he sets his nonce in the future, this value will be ignored
+
+      if (nonce) {
+        pubNonce = await getPubNonce();
       }
 
       // its a new v2 user, lets set his nonce
       if (!nonce) {
-        nonce = generatePrivate().toString("hex");
+        const lockKey = `metadata-lock-${key}`;
+        const lock = await redlock.acquire([lockKey], 5000);
+        try {
+          // check if someone else has set it
+          nonce = await getNonce(true);
+          if (nonce) {
+            pubNonce = await getPubNonce(true);
+          } else {
+            // create new nonce
+            nonce = generatePrivate().toString("hex");
 
-        const unformattedPubNonce = elliptic.keyFromPrivate(nonce).getPublic();
-        pubNonce = {
-          x: unformattedPubNonce.getX().toString("hex"),
-          y: unformattedPubNonce.getY().toString("hex"),
-        };
+            const unformattedPubNonce = elliptic.keyFromPrivate(nonce).getPublic();
+            pubNonce = {
+              x: unformattedPubNonce.getX().toString("hex"),
+              y: unformattedPubNonce.getY().toString("hex"),
+            };
 
-        // We just created new nonce and pub nonce above, write to db
-        const pubNonceStr = JSON.stringify(pubNonce);
-        await insertDataInBatchForTable(tableName, [
-          [
-            { key, value: nonce },
-            { key: keyForPubNonce, value: pubNonceStr },
-          ],
-        ]);
-        [ipfs] = await Promise.all([
-          getHashAndWriteAsync({ [tableName]: [{ key, value: pubNonceStr }] }),
-          redis.setEx(key, REDIS_TIMEOUT, nonce).catch((error) => log.warn("redis set failed", error)),
-          redis.setEx(keyForPubNonce, REDIS_TIMEOUT, pubNonceStr).catch((error) => log.warn("redis set failed", error)),
-        ]);
+            // We just created new nonce and pub nonce above, write to db
+            const pubNonceStr = JSON.stringify(pubNonce);
+            await insertDataInBatchForTable(tableName, [
+              [
+                { key, value: nonce },
+                { key: keyForPubNonce, value: pubNonceStr },
+              ],
+            ]);
+            [ipfs] = await Promise.all([
+              getHashAndWriteAsync({ [tableName]: [{ key, value: pubNonceStr }] }),
+              redis.setEx(key, REDIS_TIMEOUT, nonce).catch((error) => log.warn("redis set failed", error)),
+              redis.setEx(keyForPubNonce, REDIS_TIMEOUT, pubNonceStr).catch((error) => log.warn("redis set failed", error)),
+            ]);
+          }
+        } finally {
+          // Release the lock.
+          await lock.release();
+        }
       }
 
       const returnResponse = {
