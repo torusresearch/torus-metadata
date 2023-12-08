@@ -1,7 +1,7 @@
+import { Redlock, ResourceLockedError } from "@sesamecare-oss/redlock";
 import Client from "ioredis";
 import log from "loglevel";
 import { createClient } from "redis";
-import Redlock, { ResourceLockedError } from "redlock";
 
 const { REDIS_PORT, REDIS_HOSTNAME } = process.env;
 const client = createClient({ socket: { host: REDIS_HOSTNAME, port: Number(REDIS_PORT) } });

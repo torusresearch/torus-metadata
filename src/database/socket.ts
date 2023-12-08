@@ -33,7 +33,7 @@ export function setupSocketIo(http: HttpServer): Server {
 }
 
 export function setupSocketMiddleware(io: Server): RequestHandler {
-  return (req: Request, res: Response, next: NextFunction) => {
+  return (req: Request, _: Response, next: NextFunction) => {
     req.io = io;
     next();
   };

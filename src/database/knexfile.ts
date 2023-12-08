@@ -14,7 +14,7 @@ log.info({
 
 function afterCreate(conn: Knex.Client, done: (err: Error, connection: unknown) => void): void {
   if (process.env.IS_AURORA_READ_REPLICA === "true") {
-    conn.query("SET aurora_replica_read_consistency='SESSION';", (err) => {
+    conn.query("SET aurora_replica_read_consistency='SESSION';", (err: Error) => {
       if (err) {
         // first query failed, return error and don't try to make next query
         done(err, conn);

@@ -8,7 +8,7 @@ export const OAUTH_CREDID_CACHE = "oauth_credid_cache";
 export const NONCEV2 = "noncev2";
 export const TEST = "test";
 
-const DBTableMap = {
+const DBTableMap: Record<string, string> = {
   [OLD]: "data",
   [TKEY]: TKEY,
   [WEBAUTHN]: WEBAUTHN,
