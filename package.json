@@ -25,6 +25,7 @@
     "@babel/runtime": "^7.23.5",
     "@sentry/node": "^7.85.0",
     "@sentry/tracing": "^7.85.0",
+    "@sesamecare-oss/redlock": "^1.2.0",
     "@socket.io/redis-adapter": "^8.2.1",
     "@toruslabs/eccrypto": "^4.0.0",
     "@toruslabs/loglevel-sentry": "^6.0.1",
@@ -47,7 +48,6 @@
     "multihashing-async": "^2.1.4",
     "mysql": "^2.18.1",
     "redis": "^4.6.11",
-    "@sesamecare-oss/redlock": "^1.2.0",
     "socket.io": "^4.7.2"
   },
   "devDependencies": {
@@ -74,7 +74,7 @@
     "nodemon": "^3.0.2",
     "prettier": "^3.1.0",
     "ts-node": "^10.9.1",
-    "typescript": "^5.3.3",
+    "typescript": "^5.2.2",
     "wait-port": "^1.1.0"
   },
   "lint-staged": {
