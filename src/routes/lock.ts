@@ -79,7 +79,8 @@ router.post(
       if (!value) {
         // No lock exists
         // Redis_timeout auto clear or no lock was ever created
-        return res.json({ status: 0 });
+        // this can happen when bulk_set operation after acquiring lock takes a lot of time.
+        return res.json({ status: 1 });
       }
       if (value === id) {
         try {
