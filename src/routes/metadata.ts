@@ -146,32 +146,39 @@ router.post(
   async (req, res) => {
     try {
       const { shares }: { shares: SetDataInput[] } = req.body;
-      const requiredData = shares.reduce((acc: Record<keyof DBTableName, DataInsertType[]>, x) => {
-        const {
-          namespace,
-          pub_key_X: pubKeyX,
-          pub_key_Y: pubKeyY,
-          set_data: { data },
-          tableName,
-        } = x;
-        if (acc[tableName]) acc[tableName].push({ key: constructKey(pubKeyX, pubKeyY, namespace), value: data });
-        else acc[tableName] = [{ key: constructKey(pubKeyX, pubKeyY, namespace), value: data }];
-        return acc;
-      }, {} as Record<keyof DBTableName, DataInsertType[]>);
+      const requiredData = shares.reduce(
+        (acc: Record<keyof DBTableName, DataInsertType[]>, x) => {
+          const {
+            namespace,
+            pub_key_X: pubKeyX,
+            pub_key_Y: pubKeyY,
+            set_data: { data },
+            tableName,
+          } = x;
+          if (acc[tableName as keyof DBTableName])
+            acc[tableName as keyof DBTableName].push({ key: constructKey(pubKeyX, pubKeyY, namespace), value: data });
+          else acc[tableName as keyof DBTableName] = [{ key: constructKey(pubKeyX, pubKeyY, namespace), value: data }];
+          return acc;
+        },
+        {} as Record<keyof DBTableName, DataInsertType[]>
+      );
 
-      await Promise.all(Object.keys(requiredData).map((x) => knexWrite(x).insert(requiredData[x])));
+      await Promise.all(Object.keys(requiredData).map((x) => knexWrite(x).insert(requiredData[x as keyof DBTableName])));
 
-      const redisData = shares.reduce((acc: Record<string, string>, x) => {
-        const {
-          namespace,
-          pub_key_X: pubKeyX,
-          pub_key_Y: pubKeyY,
-          set_data: { data },
-        } = x;
-        const key = constructKey(pubKeyX, pubKeyY, namespace);
-        acc[key] = data;
-        return acc;
-      }, {} as Record<string, string>);
+      const redisData = shares.reduce(
+        (acc: Record<string, string>, x) => {
+          const {
+            namespace,
+            pub_key_X: pubKeyX,
+            pub_key_Y: pubKeyY,
+            set_data: { data },
+          } = x;
+          const key = constructKey(pubKeyX, pubKeyY, namespace);
+          acc[key] = data;
+          return acc;
+        },
+        {} as Record<string, string>
+      );
 
       try {
         await Promise.all(Object.keys(redisData).map((x) => redis.setEx(x, REDIS_TIMEOUT, redisData[x])));
@@ -216,7 +223,7 @@ router.post(
     try {
       const { shares }: { shares: SetDataInput[] } = req.body;
 
-      const redisData = {};
+      const redisData: Record<string, string> = {};
       const totalBatchesPerTable: Partial<Record<DBTableName, DataInsertType[][]>> = {}; // Key table name, value array of batch data (max 60MB)
       const currentBatchSizePerTable: Partial<Record<DBTableName, number>> = {}; // Key table name, value size of current batch
       for (const share of shares) {
@@ -249,7 +256,9 @@ router.post(
         }
       }
 
-      await Promise.all(Object.keys(totalBatchesPerTable).map((x: DBTableName) => insertDataInBatchForTable(x, totalBatchesPerTable[x])));
+      await Promise.all(
+        Object.keys(totalBatchesPerTable).map((x) => insertDataInBatchForTable(x as DBTableName, totalBatchesPerTable[x as DBTableName]))
+      );
 
       try {
         await Promise.all(Object.keys(redisData).map((x) => redis.setEx(x, REDIS_TIMEOUT, redisData[x])));
@@ -257,11 +266,14 @@ router.post(
         log.warn("redis bulk set failed", error);
       }
 
-      const requiredData = Object.keys(totalBatchesPerTable).reduce((acc: Record<DBTableName, DataInsertType[]>, x: DBTableName) => {
-        const batch = totalBatchesPerTable[x];
-        acc[x] = batch.flatMap((y) => y);
-        return acc;
-      }, {} as Record<DBTableName, DataInsertType[]>);
+      const requiredData = Object.keys(totalBatchesPerTable).reduce(
+        (acc: Record<DBTableName, DataInsertType[]>, x) => {
+          const batch = totalBatchesPerTable[x as DBTableName];
+          acc[x as DBTableName] = batch.flatMap((y) => y);
+          return acc;
+        },
+        {} as Record<DBTableName, DataInsertType[]>
+      );
 
       const ipfsResult = await getHashAndWriteAsync(requiredData);
       return res.json({ message: ipfsResult });
@@ -455,7 +467,7 @@ router.post(
         pubNonce,
         ipfs,
         nonce: undefined,
-      };
+      } as { typeOfUser: "v1" | "v2"; upgraded: boolean; pubNonce: string | { x: string; y: string }; ipfs: string[]; nonce?: string };
       if (!returnResponse.upgraded && !res.locals.noValidSig) {
         // if account is 1/1 and there's a valid sig, return nonce
         returnResponse.nonce = nonce;
