@@ -276,9 +276,9 @@ describe("API-calls", function () {
       privKey = new BN(generatePrivate());
     });
 
-    it("#cannot release empty lock", async function () {
+    it("#can release empty lock", async function () {
       const { status: releaseStatus } = await storageLayer.releaseWriteLock({ id: randomID(), privKey });
-      assert.strictEqual(releaseStatus, 0);
+      assert.strictEqual(releaseStatus, 1);
     });
 
     it("#it should acquire lock correctly", async function () {
