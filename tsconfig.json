@@ -1,33 +1,16 @@
 {
-  "ts-node": {
-    // It is faster to skip typechecking.
-    // Remove if you want ts-node to do typechecking.
-    "transpileOnly": true,
-
-    "files": true,
-
-    "compilerOptions": {
-      // compilerOptions specified here will override those declared below,
-      // but *only* in ts-node.  Useful if you want ts-node and tsc to use
-      // different options with a single tsconfig.json.
-    }
-  },
+  "extends": "@toruslabs/config/tsconfig.default.json",
+  "include": ["src"],
   "compilerOptions": {
-    "outDir": "dist",
-    "module": "commonjs",
-    "target": "ES2020",
-    "lib": ["ES2020"],
-    "moduleResolution": "node",
-    "skipLibCheck": true,
-    "sourceMap": true,
-    "esModuleInterop": true,
-    "noImplicitThis": true,
+    "moduleResolution": "Node16",
+    "outDir": "./dist",
     "declaration": true,
-    "downlevelIteration": true,
-    "allowSyntheticDefaultImports": true,
-    "experimentalDecorators": true,
-    "emitDecoratorMetadata": true,
-    "typeRoots": ["node_modules/@types", "src/@types"]
+    "declarationDir": "./dist/types",
+    "module": "Node16",
+    "target": "ES2022",
+    "lib": ["ES2022"]
   },
-  "exclude": ["node_modules", "dist"]
+  "ts-node": {
+    "files": true
+  }
 }

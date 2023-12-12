@@ -10,8 +10,8 @@ export const validateDataTimeStamp = async (req: Request, res: Response, next: N
   const { set_data: setData }: SetDataInput = req.body;
   const { timestamp } = setData;
   const timeParsed = parseInt(timestamp, 16);
-  if (~~(Date.now() / 1000) - timeParsed > 60) {
-    return res.status(403).json({ error: { timestamp: "Message has been signed more than 60s ago" }, success: false });
+  if (~~(Date.now() / 1000) - timeParsed > 90) {
+    return res.status(403).json({ error: { timestamp: "Message has been signed more than 90s ago" }, success: false });
   }
   return next();
 };
@@ -23,8 +23,8 @@ export const validateMetadataLoopInput = (key: string) => (req: Request, res: Re
     const { set_data: setData } = param;
     const { timestamp } = setData;
     const timeParsed = parseInt(timestamp, 16);
-    if (~~(Date.now() / 1000) - timeParsed > 60) {
-      const errors = { index, timestamp: "Message has been signed more than 60s ago" };
+    if (~~(Date.now() / 1000) - timeParsed > 90) {
+      const errors = { index, timestamp: "Message has been signed more than 90s ago" };
       return res.status(403).json({ error: errors, success: false });
     }
   }
@@ -56,8 +56,8 @@ export const validateLoopSignature = (key: string) => (req: Request, res: Respon
         const errors = { index, signature: "Invalid signature" };
         return res.status(403).json({ error: errors, success: false });
       }
-    } catch (error) {
-      error.index = index;
+    } catch (error: unknown) {
+      (error as { index: number }).index = index;
       log.error("signature verification failed", error);
       return res.status(500).json({ error: getError(error), success: false });
     }
@@ -76,7 +76,7 @@ export const validateNamespace = (req: Request, res: Response, next: NextFunctio
   }
 };
 
-export const validateNamespaceLoop = (key: string) => (req: Request, res: Response, next: NextFunction) => {
+export const validateNamespaceLoop = (key: string) => (req: Request, _: Response, next: NextFunction) => {
   const paramsObject: { [key: string]: SetDataInput[] } = req.body;
   const mainParamToTest = paramsObject[key];
   for (const param of mainParamToTest) {
@@ -96,8 +96,8 @@ export const validateLockData = (req: Request, res: Response, next: NextFunction
     }
     const { timestamp } = val.data;
     const timeParsed = parseInt(timestamp, 16);
-    if (~~(Date.now() / 1000) - timeParsed > 60) {
-      return res.status(403).json({ error: { message: "Message has been signed more than 60s ago" }, success: false });
+    if (~~(Date.now() / 1000) - timeParsed > 90) {
+      return res.status(403).json({ error: { message: "Message has been signed more than 90s ago" }, success: false });
     }
     return next();
   } catch (error) {
@@ -133,8 +133,8 @@ export const validateGetOrSetNonceSetInput = async (req: Request, res: Response,
     return res.status(403).json({ error: { data: "Should be equal to 'getOrSetNonce' or 'getNonce'" }, success: false });
   }
   const timeParsed = parseInt(timestamp, 16);
-  if (~~(Date.now() / 1000) - timeParsed > 60) {
-    return res.status(403).json({ error: { timestamp: "Message has been signed more than 60s ago" }, success: false });
+  if (~~(Date.now() / 1000) - timeParsed > 90) {
+    return res.status(403).json({ error: { timestamp: "Message has been signed more than 90s ago" }, success: false });
   }
   return next();
 };
@@ -160,7 +160,7 @@ export const validateGetOrSetNonceSignature = async (req: Request, res: Response
 export const serializeStreamBody = (req: Request, res: Response, next: NextFunction) => {
   try {
     const stream = req.body;
-    const shares: SetDataInput[] = Object.values(stream).map((el: string) => JSON.parse(el));
+    const shares: SetDataInput[] = Object.values(stream).map((el) => JSON.parse(el as string) as SetDataInput);
     req.body = { shares };
     return next();
   } catch (error) {
