@@ -22,7 +22,7 @@ chai.use(chaiHttp);
 const { assert, request } = chai;
 
 const randomID = () => `${Math.random().toString(36).substring(2, 9)}`;
-
+const { generateGetOrSetNonceParams } = require("./util");
 /**
  * Testing API calls.
  */
@@ -123,6 +123,16 @@ describe("API-calls", function () {
         const val = await err.json();
         assert.deepStrictEqual(val.error.timestamp, "Message has been signed more than 90s ago"); // same goes for pubkeyY
       }
+    });
+
+    it("#it should set new nonce for new user with ed25519 key, when validation is correct", async function () {
+      const msg = "getOrSetNonce";
+      const data = "getOrSetNonce";
+      const privKeyNew = new BN(generatePrivate());
+      const metadataParams = generateGetOrSetNonceParams(msg, data, privKeyNew, "ed25519");
+      const val = await post(`${server}/get_or_set_nonce`, metadataParams);
+
+      assert.isString(val.nonce);
     });
 
     it("#it should reject if signature is invalid", async function () {
@@ -303,6 +313,99 @@ describe("API-calls", function () {
       assert.strictEqual(status, 1);
       const { status: releaseStatus } = await storageLayer.releaseWriteLock({ id: randomID(), privKey });
       assert.strictEqual(releaseStatus, 2);
+    });
+  });
+
+  describe("/get_or_set_nonce", function () {
+    let privKey;
+    before(function () {
+      privKey = new BN(generatePrivate());
+    });
+
+    it("#it should reject if the pub_key_X/pub_key_Y is missing", async function () {
+      const msg = "getOrSetNonce";
+      const data = "";
+      const metadataParams = generateGetOrSetNonceParams(msg, data, privKey);
+      metadataParams.pub_key_X = ""; // remove pub_key_X
+      try {
+        await post(`${server}/get_or_set_nonce`, metadataParams);
+      } catch (err) {
+        const val = await err.json();
+        assert.deepStrictEqual(val.validation.body.message, '"pub_key_X" is not allowed to be empty');
+      }
+    });
+
+    it("#it should reject if the signature is missing", async function () {
+      const msg = "getOrSetNonce";
+      const data = "getOrSetNonce";
+      const metadataParams = generateGetOrSetNonceParams(msg, data, privKey);
+      metadataParams.signature = ""; // remove signature
+      try {
+        await post(`${server}/get_or_set_nonce`, metadataParams);
+      } catch (err) {
+        const val = await err.json();
+        assert.deepStrictEqual(val.validation.body.message, '"signature" is not allowed to be empty');
+      }
+    });
+
+    it("#it should reject if the timestamp is missing and signature is present", async function () {
+      const msg = "getOrSetNonce";
+      const data = "getOrSetNonce";
+      const metadataParams = generateGetOrSetNonceParams(msg, data, privKey);
+      metadataParams.set_data.timestamp = "";
+      try {
+        await post(`${server}/get_or_set_nonce`, metadataParams);
+      } catch (err) {
+        const val = await err.json();
+        assert.deepStrictEqual(val.statusCode, 400);
+        assert.deepStrictEqual(val.message, "Validation failed");
+      }
+    });
+
+    it("#it should reject if the timestamp is old", async function () {
+      const msg = "getOrSetNonce";
+      const data = "getOrSetNonce";
+      const metadataParams = generateGetOrSetNonceParams(msg, data, privKey);
+      metadataParams.set_data.timestamp = new BN(~~(Date.now() / 1000) - 95).toString(16); // set old timestimpe
+      try {
+        await post(`${server}/get_or_set_nonce`, metadataParams);
+      } catch (err) {
+        const val = await err.json();
+        assert.deepStrictEqual(val.error.timestamp, "Message has been signed more than 90s ago");
+      }
+    });
+    it("#it should set new nonce for new user with ed25519 key, when validation is correct", async function () {
+      const msg = "getOrSetNonce";
+      const data = "getOrSetNonce";
+      const privKeyNew = new BN(generatePrivate());
+      const metadataParams = generateGetOrSetNonceParams(msg, data, privKeyNew, "ed25519");
+      const val = await post(`${server}/get_or_set_nonce`, metadataParams);
+      assert.isString(val.nonce);
+    });
+
+    it("#it should get existing nonce for user when validation is correct", async function () {
+      const msg = "getOrSetNonce";
+      const data = "getOrSetNonce";
+      const metadataParams = generateGetOrSetNonceParams(msg, data, privKey);
+
+      // set nonce
+      const setResult = await post(`${server}/get_or_set_nonce`, metadataParams);
+      assert.isString(setResult.nonce);
+      assert.isObject(setResult.pubNonce);
+
+      // get nonce
+      const getResult = await post(`${server}/get_or_set_nonce`, metadataParams);
+      assert.equal(getResult.nonce, setResult.nonce);
+      assert.deepEqual(getResult.pubNonce, setResult.pubNonce);
+    });
+
+    it("#it should get set custom passed nonce for user when validation is correct", async function () {
+      const msg = "getOrSetNonce";
+      const data = "getOrSetNonce";
+      const metadataParams = generateGetOrSetNonceParams(msg, data, privKey);
+      const setResult = await post(`${server}/get_or_set_nonce`, metadataParams);
+      assert.isString(setResult.nonce);
+      assert.isObject(setResult.pubNonce);
     });
   });
 });
