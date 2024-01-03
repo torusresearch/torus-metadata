@@ -378,15 +378,9 @@ describe("API-calls", function () {
       const msg = "getOrSetNonce";
       const data = "getOrSetNonce";
       const privKeyNew = new BN(generatePrivate());
-      try {
-        const metadataParams = generateGetOrSetNonceParams(msg, data, privKeyNew, "ed25519");
-        const val = await post(`${server}/get_or_set_nonce`, metadataParams);
-        assert.isString(val.nonce);
-      } catch (err) {
-        console.log({ err });
-        const val = await err.json();
-        console.log({ val });
-      }
+      const metadataParams = generateGetOrSetNonceParams(msg, data, privKeyNew, "ed25519");
+      const val = await post(`${server}/get_or_set_nonce`, metadataParams);
+      assert.isString(val.nonce);
     });
 
     it("#it should get existing nonce for user when validation is correct", async function () {
