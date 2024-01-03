@@ -27,8 +27,6 @@ const upload = multer({
   limits: { fieldSize: 30 * 1024 * 1024 },
 });
 
-const elliptic = new EC("secp256k1");
-
 const router = express.Router();
 
 const NAMESPACES = {
@@ -329,6 +327,7 @@ router.post(
       pub_key_X: Joi.string().max(64).required(),
       pub_key_Y: Joi.string().max(64).required(),
       namespace: Joi.string().max(128),
+      key_type: Joi.string().allow("").optional(),
       set_data: Joi.object({
         data: Joi.string(),
         timestamp: Joi.string().hex(),
@@ -347,6 +346,7 @@ router.post(
         set_data: { data },
         namespace: oldNamespace,
         tableName,
+        key_type: keyType,
       }: SetDataInput = req.body;
 
       const oldKey = constructKey(pubKeyX, pubKeyY, oldNamespace);
@@ -435,7 +435,9 @@ router.post(
             // create new nonce
             nonce = generatePrivate().toString("hex");
 
-            const unformattedPubNonce = elliptic.keyFromPrivate(nonce).getPublic();
+            const ec = keyType === "ed25519" ? new EC("ed25519") : new EC("secp256k1");
+
+            const unformattedPubNonce = ec.keyFromPrivate(nonce).getPublic();
             pubNonce = {
               x: unformattedPubNonce.getX().toString("hex"),
               y: unformattedPubNonce.getY().toString("hex"),

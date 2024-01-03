@@ -38,10 +38,13 @@ export interface SetDataData {
   timestamp: string;
 }
 
+export type KeyType = "secp256k1" | "ed25519";
+
 export interface SetDataInput {
   namespace?: string;
   pub_key_X: string;
   pub_key_Y: string;
+  key_type?: KeyType;
   set_data: SetDataData;
   tableName?: DBTableName;
   signature: string;
@@ -50,6 +53,7 @@ export interface SetDataInput {
 export interface LockDataInput {
   key: string;
   signature: string;
+  key_type?: KeyType;
   data: Partial<SetDataData> & Pick<SetDataData, "timestamp">;
 }
 
