@@ -1,5 +1,4 @@
 /* eslint-disable security/detect-object-injection */
-import { generatePrivate } from "@toruslabs/eccrypto";
 import { celebrate, Joi, Segments } from "celebrate";
 import { ec as EC } from "elliptic";
 import express, { Request, Response } from "express";
@@ -432,10 +431,10 @@ router.post(
           if (nonce) {
             pubNonce = await getPubNonce(true);
           } else {
-            // create new nonce
-            nonce = generatePrivate().toString("hex");
-
             const ec = keyType === "ed25519" ? new EC("ed25519") : new EC("secp256k1");
+
+            // create new nonce
+            nonce = ec.genKeyPair().getPrivate().toString("hex", 64);
 
             const unformattedPubNonce = ec.keyFromPrivate(nonce).getPublic();
             pubNonce = {
