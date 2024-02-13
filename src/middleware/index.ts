@@ -11,6 +11,7 @@ export const validateDataTimeStamp = async (req: Request, res: Response, next: N
   const { timestamp } = setData;
   const timeParsed = parseInt(timestamp, 16);
   if (~~(Date.now() / 1000) - timeParsed > 90) {
+    log.error("[validateDataTimeStamp] Message has been signed more than 60s ago", { currentTime: ~~(Date.now() / 1000), timeParsed });
     return res.status(403).json({ error: { timestamp: "Message has been signed more than 90s ago" }, success: false });
   }
   return next();
@@ -25,6 +26,7 @@ export const validateMetadataLoopInput = (key: string) => (req: Request, res: Re
     const timeParsed = parseInt(timestamp, 16);
     if (~~(Date.now() / 1000) - timeParsed > 90) {
       const errors = { index, timestamp: "Message has been signed more than 90s ago" };
+      log.error("[validateMetadataLoopInput]", { currentTime: ~~(Date.now() / 1000), timeParsed, errors });
       return res.status(403).json({ error: errors, success: false });
     }
   }
@@ -37,6 +39,7 @@ export const validateSignature = async (req: Request, res: Response, next: NextF
     const isValid = isValidSignature(setDataInput);
 
     if (!isValid) {
+      log.error("Invalid signature", { setDataInput });
       return res.status(403).json({ error: { signature: "Invalid signature" }, success: false });
     }
     return next();
@@ -54,6 +57,7 @@ export const validateLoopSignature = (key: string) => (req: Request, res: Respon
       const isValid = isValidSignature(param);
       if (!isValid) {
         const errors = { index, signature: "Invalid signature" };
+        log.error("Invalid signature", { index, param });
         return res.status(403).json({ error: errors, success: false });
       }
     } catch (error: unknown) {
@@ -92,11 +96,13 @@ export const validateLockData = (req: Request, res: Response, next: NextFunction
     const isValid = isValidLockSignature(val);
     if (!isValid) {
       const errors = { signature: "Invalid signature" };
+      log.error("[validateLockData] Invalid signature", { val });
       return res.status(403).json({ error: errors, success: false });
     }
     const { timestamp } = val.data;
     const timeParsed = parseInt(timestamp, 16);
     if (~~(Date.now() / 1000) - timeParsed > 90) {
+      log.error("[validateLockData] Message has been signed more than 90s ago", { currentTime: ~~(Date.now() / 1000), timeParsed });
       return res.status(403).json({ error: { message: "Message has been signed more than 90s ago" }, success: false });
     }
     return next();
@@ -130,11 +136,12 @@ export const validateGetOrSetNonceSetInput = async (req: Request, res: Response,
   const { timestamp, data } = setData;
 
   if (!["getOrSetNonce", "getNonce"].includes(data)) {
+    log.error("Should be equal to 'getOrSetNonce' or 'getNonce'", { data });
     return res.status(403).json({ error: { data: "Should be equal to 'getOrSetNonce' or 'getNonce'" }, success: false });
   }
   const timeParsed = parseInt(timestamp, 16);
   if (~~(Date.now() / 1000) - timeParsed > 90) {
-    log.error("Message has been signed more than 90s ago", { currentTime: ~~(Date.now() / 1000), timeParsed });
+    log.error("[validateGetOrSetNonceSetInput] Message has been signed more than 90s ago", { currentTime: ~~(Date.now() / 1000), timeParsed });
     return res.status(403).json({ error: { timestamp: "Message has been signed more than 90s ago" }, success: false });
   }
   return next();
@@ -149,6 +156,7 @@ export const validateGetOrSetNonceSignature = async (req: Request, res: Response
     const { body }: { body: SetDataInput } = req;
     const isValid = isValidSignature(body);
     if (!isValid) {
+      log.error("[validateGetOrSetNonceSignature] Invalid signature", { body });
       return res.status(403).json({ error: { signature: "Invalid Signature" }, success: false });
     }
     return next();
