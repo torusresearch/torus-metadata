@@ -134,6 +134,7 @@ export const validateGetOrSetNonceSetInput = async (req: Request, res: Response,
   }
   const timeParsed = parseInt(timestamp, 16);
   if (~~(Date.now() / 1000) - timeParsed > 90) {
+    log.error("Message has been signed more than 90s ago", { currentTime: ~~(Date.now() / 1000), timeParsed });
     return res.status(403).json({ error: { timestamp: "Message has been signed more than 90s ago" }, success: false });
   }
   return next();
