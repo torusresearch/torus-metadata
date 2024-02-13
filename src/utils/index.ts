@@ -39,10 +39,18 @@ export const isValidSignature = (data: SetDataInput) => {
     r: Buffer.from(decodedSignature.substring(0, 64), "hex"),
     s: Buffer.from(decodedSignature.substring(64, 128), "hex"),
   };
-  return elliptic.verify(keccak256(stringify(setData)), ecSignature, pubKey);
+  // this is to ensure that the signature is valid for both JSON and stringified data
+  // and for backward compatibility.
+  const result1 = elliptic.verify(keccak256(stringify(setData)), ecSignature, pubKey);
+  if (result1) return true;
+  return elliptic.verify(keccak256(JSON.stringify(setData)), ecSignature, pubKey);
 };
 
 export const isValidLockSignature = (lockData: LockDataInput) => {
   const { key, signature, data } = lockData;
-  return elliptic.verify(keccak256(stringify(data)), signature, Buffer.from(key, "hex"));
+  // this is to ensure that the signature is valid for both JSON and stringified data
+  // and for backward compatibility.
+  const result = elliptic.verify(keccak256(Buffer.from(stringify(data), "utf8")), signature, Buffer.from(key, "hex"));
+  if (result) return result;
+  return elliptic.verify(keccak256(Buffer.from(JSON.stringify(data), "utf8")), signature, Buffer.from(key, "hex"));
 };
