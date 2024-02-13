@@ -1,6 +1,8 @@
 import * as Sentry from "@sentry/node";
 import * as Tracing from "@sentry/tracing";
-import { Express } from "express";
+import LoglevelSentryPlugin from "@toruslabs/loglevel-sentry";
+import { type Express } from "express";
+import log from "loglevel";
 
 import redact from "./redactSentry";
 
@@ -24,7 +26,7 @@ export const registerSentry = (app: Express): void => {
         new Tracing.Integrations.Mysql(), // Add this integration
       ],
       tracesSampleRate: 0,
-      sampleRate: 0.1,
+      sampleRate: 1,
       beforeSend(event) {
         return redact(event);
       },
@@ -37,6 +39,9 @@ export const registerSentry = (app: Express): void => {
     );
     // TracingHandler creates a trace for every incoming request
     app.use(Sentry.Handlers.tracingHandler());
+
+    const plugin = new LoglevelSentryPlugin(Sentry);
+    plugin.install(log);
   }
 };
 
