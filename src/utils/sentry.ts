@@ -24,7 +24,7 @@ export const registerSentry = (app: Express): void => {
         new Tracing.Integrations.Mysql(), // Add this integration
       ],
       tracesSampleRate: 0,
-      sampleRate: 0.1,
+      sampleRate: 1,
       beforeSend(event) {
         return redact(event);
       },
