@@ -31,7 +31,7 @@ export const MAX_BATCH_SIZE = 60 * 1024 * 1024; // 60MB
 
 export const REDIS_NAME_SPACE = "EMAIL_AUTH_DATA";
 
-export const isValidSignature = (data: SetDataInput) => {
+export const isValidSignature = (data: SetDataInput): boolean => {
   const { pub_key_X: pubKeyX, pub_key_Y: pubKeyY, signature, set_data: setData } = data;
   const pubKey = elliptic.keyFromPublic({ x: pubKeyX, y: pubKeyY }, "hex");
   const decodedSignature = Buffer.from(signature, "base64").toString("hex");
@@ -41,16 +41,22 @@ export const isValidSignature = (data: SetDataInput) => {
   };
   // this is to ensure that the signature is valid for both JSON and stringified data
   // and for backward compatibility.
-  const result1 = elliptic.verify(keccak256(stringify(setData)), ecSignature, pubKey);
-  if (result1) return true;
-  return elliptic.verify(keccak256(JSON.stringify(setData)), ecSignature, pubKey);
+  const casesToCheck = [stringify(setData), JSON.stringify(setData), JSON.stringify({ timestamp: setData.timestamp, data: setData.data })];
+  for (const dataCase of casesToCheck) {
+    const result = elliptic.verify(keccak256(dataCase), ecSignature, pubKey);
+    if (result) return result;
+  }
+  return false;
 };
 
-export const isValidLockSignature = (lockData: LockDataInput) => {
+export const isValidLockSignature = (lockData: LockDataInput): boolean => {
   const { key, signature, data } = lockData;
   // this is to ensure that the signature is valid for both JSON and stringified data
   // and for backward compatibility.
-  const result = elliptic.verify(keccak256(Buffer.from(stringify(data), "utf8")), signature, Buffer.from(key, "hex"));
-  if (result) return result;
-  return elliptic.verify(keccak256(Buffer.from(JSON.stringify(data), "utf8")), signature, Buffer.from(key, "hex"));
+  const casesToCheck = [stringify(data), JSON.stringify(data), JSON.stringify({ timestamp: data.timestamp, data: data.data })];
+  for (const dataCase of casesToCheck) {
+    const result = elliptic.verify(keccak256(Buffer.from(dataCase, "utf8")), signature, Buffer.from(key, "hex"));
+    if (result) return result;
+  }
+  return false;
 };
