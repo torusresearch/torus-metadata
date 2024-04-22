@@ -22,6 +22,7 @@ dotenv.config({
 import { setupIoListeners, setupSocketIo, setupSocketMiddleware } from "./database/socket";
 import routes from "./routes";
 import { registerSentry, registerSentryErrorHandler } from "./utils/sentry";
+import { traceContextMiddleware } from "./utils/traceContext";
 
 const app = express();
 const http = createServer(app);
@@ -55,6 +56,8 @@ app.use(express.urlencoded({ extended: false, limit: "20mb" })); // middleware w
 app.use(express.json({ limit: "20mb" })); // converts body to json
 
 app.use(setupSocketMiddleware(io));
+app.use(traceContextMiddleware);
+
 app.use("/", routes);
 app.use(errors());
 

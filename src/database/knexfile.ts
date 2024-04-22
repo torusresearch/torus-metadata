@@ -1,14 +1,15 @@
 import { Knex } from "knex";
-import log from "loglevel";
+
+import createLogger from "../utils/createLogger";
+
+const log = createLogger("knexfile");
 
 log.info({
   host: process.env.RDS_HOSTNAME_WRITE,
   database: process.env.RDS_DB_NAME,
   port: process.env.RDS_PORT,
   user: process.env.RDS_USERNAME,
-  password: process.env.RDS_PASSWORD,
   devUser: process.env.MYSQL_USER,
-  devPassword: process.env.MYSQL_PASSWORD,
   devDatabase: process.env.MYSQL_DATABASE,
 });
 
@@ -32,7 +33,7 @@ function afterCreate(conn: Knex.Client, done: (err: Error, connection: unknown) 
 
 export default {
   development: {
-    client: "mysql",
+    client: "mysql2",
     connection: {
       host: process.env.RDS_HOSTNAME_WRITE,
       database: process.env.MYSQL_DATABASE,
@@ -58,7 +59,7 @@ export default {
   } as Knex.Config,
 
   stagingRead: {
-    client: "mysql",
+    client: "mysql2",
     connection: {
       host: process.env.RDS_HOSTNAME_READ,
       database: process.env.RDS_DB_NAME,
@@ -85,7 +86,7 @@ export default {
   } as Knex.Config,
 
   productionRead: {
-    client: "mysql",
+    client: "mysql2",
     connection: {
       host: process.env.RDS_HOSTNAME_READ,
       database: process.env.RDS_DB_NAME,
@@ -112,7 +113,7 @@ export default {
   } as Knex.Config,
 
   stagingWrite: {
-    client: "mysql",
+    client: "mysql2",
     connection: {
       host: process.env.RDS_HOSTNAME_WRITE,
       database: process.env.RDS_DB_NAME,
@@ -139,7 +140,7 @@ export default {
   } as Knex.Config,
 
   productionWrite: {
-    client: "mysql",
+    client: "mysql2",
     connection: {
       host: process.env.RDS_HOSTNAME_WRITE,
       database: process.env.RDS_DB_NAME,
