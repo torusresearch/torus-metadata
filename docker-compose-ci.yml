@@ -1,5 +1,3 @@
-version: "3"
-
 services:
   # ipfs:
   #   image: ipfs/go-ipfs
@@ -12,19 +10,31 @@ services:
       - ./.env.development
     ports:
       - "6379:6379"
+    healthcheck:
+      interval: 5s
+      retries: 5
+      test: redis-cli --raw incr ping
+      timeout: 1s
   mysql:
     restart: always
-    # platform: linux/x86_64
-    image: mysql:5.7
+    platform: linux/x86_64
+    image: mysql:8
     env_file:
       - ./.env.development
     ports:
       - "3306:3306"
+    healthcheck:
+      interval: 5s
+      retries: 5
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 1s
   torus-metadata:
     restart: "no"
     depends_on:
-      - mysql
-      - redis
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
       # - ipfs
     build:
       context: .
