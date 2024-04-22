@@ -1,4 +1,4 @@
-FROM node:18-alpine
+FROM node:20-alpine
 
 WORKDIR /app
 
@@ -14,6 +14,8 @@ RUN apk add --no-cache --virtual .gyp \
 
 COPY . .
 
+RUN npm run build
+
 EXPOSE 5051
 
-CMD npm run build && npm run prod
+CMD npm run prod

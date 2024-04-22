@@ -1,5 +1,3 @@
-version: "3"
-
 services:
   # ipfs:
   #   image: ipfs/go-ipfs
@@ -15,7 +13,7 @@ services:
   mysql:
     restart: always
     # platform: linux/x86_64
-    image: mysql:5.7
+    image: mysql:8
     command: --max_allowed_packet=67108864 # 64 MB
     env_file:
       - ./.env.development
