@@ -1,5 +1,8 @@
 import { Knex } from "knex";
-import log from "loglevel";
+
+import createLogger from "../utils/createLogger";
+
+const log = createLogger("knexfile");
 
 log.info({
   host: process.env.RDS_HOSTNAME_WRITE,
