@@ -10,9 +10,9 @@ export const validateDataTimeStamp = async (req: Request, res: Response, next: N
   const { set_data: setData }: SetDataInput = req.body;
   const { timestamp } = setData;
   const timeParsed = parseInt(timestamp, 16);
-  if (~~(Date.now() / 1000) - timeParsed > 90) {
-    log.error("[validateDataTimeStamp] Message has been signed more than 60s ago", { currentTime: ~~(Date.now() / 1000), timeParsed });
-    return res.status(403).json({ error: { timestamp: "Message has been signed more than 90s ago" }, success: false });
+  if (~~(Date.now() / 1000) - timeParsed > 600) {
+    log.error("[validateDataTimeStamp] Message has been signed more than 600s ago", { currentTime: ~~(Date.now() / 1000), timeParsed });
+    return res.status(403).json({ error: { timestamp: "Message has been signed more than 600s ago" }, success: false });
   }
   return next();
 };
@@ -24,8 +24,8 @@ export const validateMetadataLoopInput = (key: string) => (req: Request, res: Re
     const { set_data: setData } = param;
     const { timestamp } = setData;
     const timeParsed = parseInt(timestamp, 16);
-    if (~~(Date.now() / 1000) - timeParsed > 90) {
-      const errors = { index, timestamp: "Message has been signed more than 90s ago" };
+    if (~~(Date.now() / 1000) - timeParsed > 600) {
+      const errors = { index, timestamp: "Message has been signed more than 600s ago" };
       log.error("[validateMetadataLoopInput]", { currentTime: ~~(Date.now() / 1000), timeParsed, errors });
       return res.status(403).json({ error: errors, success: false });
     }
@@ -101,9 +101,9 @@ export const validateLockData = (req: Request, res: Response, next: NextFunction
     }
     const { timestamp } = val.data;
     const timeParsed = parseInt(timestamp, 16);
-    if (~~(Date.now() / 1000) - timeParsed > 90) {
-      log.error("[validateLockData] Message has been signed more than 90s ago", { currentTime: ~~(Date.now() / 1000), timeParsed });
-      return res.status(403).json({ error: { message: "Message has been signed more than 90s ago" }, success: false });
+    if (~~(Date.now() / 1000) - timeParsed > 600) {
+      log.error("[validateLockData] Message has been signed more than 600s ago", { currentTime: ~~(Date.now() / 1000), timeParsed });
+      return res.status(403).json({ error: { message: "Message has been signed more than 600s ago" }, success: false });
     }
     return next();
   } catch (error) {
@@ -140,9 +140,9 @@ export const validateGetOrSetNonceSetInput = async (req: Request, res: Response,
     return res.status(403).json({ error: { data: "Should be equal to 'getOrSetNonce' or 'getNonce'" }, success: false });
   }
   const timeParsed = parseInt(timestamp, 16);
-  if (~~(Date.now() / 1000) - timeParsed > 90) {
-    log.error("[validateGetOrSetNonceSetInput] Message has been signed more than 90s ago", { currentTime: ~~(Date.now() / 1000), timeParsed });
-    return res.status(403).json({ error: { timestamp: "Message has been signed more than 90s ago" }, success: false });
+  if (~~(Date.now() / 1000) - timeParsed > 600) {
+    log.error("[validateGetOrSetNonceSetInput] Message has been signed more than 600s ago", { currentTime: ~~(Date.now() / 1000), timeParsed });
+    return res.status(403).json({ error: { timestamp: "Message has been signed more than 600s ago" }, success: false });
   }
   return next();
 };
