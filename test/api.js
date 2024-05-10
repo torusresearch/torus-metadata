@@ -121,7 +121,7 @@ describe("API-calls", function () {
         await post(`${server}/set`, metadataParams);
       } catch (err) {
         const val = await err.json();
-        assert.deepStrictEqual(val.error.timestamp, "Message has been signed more than 90s ago"); // same goes for pubkeyY
+        assert.deepStrictEqual(val.error.timestamp, "Message has been signed more than 600s ago"); // same goes for pubkeyY
       }
     });
 
@@ -237,7 +237,7 @@ describe("API-calls", function () {
         await post(`${server}/bulk_set_stream`, FD, options, customOptions);
       } catch (err) {
         const { error } = await err.json();
-        assert.deepStrictEqual(error.timestamp, "Message has been signed more than 90s ago"); // same goes for pubkeyY
+        assert.deepStrictEqual(error.timestamp, "Message has been signed more than 600s ago"); // same goes for pubkeyY
       }
     });
 
