@@ -116,12 +116,12 @@ describe("API-calls", function () {
       const serializedEncryptedDetails = globalThis.btoa(stringify(encryptedDetails));
 
       const metadataParams = storageLayer.generateMetadataParams(serializedEncryptedDetails, undefined, PRIVATE_KEY);
-      metadataParams.set_data.timestamp = new BN(~~(Date.now() / 1000) - 95).toString(16);
+      metadataParams.set_data.timestamp = new BN(~~(Date.now() / 1000) - 605).toString(16);
       try {
         await post(`${server}/set`, metadataParams);
       } catch (err) {
         const val = await err.json();
-        assert.deepStrictEqual(val.error.timestamp, "Message has been signed more than 90s ago"); // same goes for pubkeyY
+        assert.deepStrictEqual(val.error.timestamp, "Message has been signed more than 600s ago"); // same goes for pubkeyY
       }
     });
 
@@ -227,7 +227,7 @@ describe("API-calls", function () {
     });
 
     it("#it should reject if one of the shares has an old timestamp", async function () {
-      finalMetadataParams[0].set_data.timestamp = new BN(~~(Date.now() / 1000) - 95).toString(16);
+      finalMetadataParams[0].set_data.timestamp = new BN(~~(Date.now() / 1000) - 605).toString(16);
       const FD = new FormData();
       finalMetadataParams.forEach((el, index) => {
         FD.append(index.toString(), JSON.stringify(el));
@@ -237,7 +237,7 @@ describe("API-calls", function () {
         await post(`${server}/bulk_set_stream`, FD, options, customOptions);
       } catch (err) {
         const { error } = await err.json();
-        assert.deepStrictEqual(error.timestamp, "Message has been signed more than 90s ago"); // same goes for pubkeyY
+        assert.deepStrictEqual(error.timestamp, "Message has been signed more than 600s ago"); // same goes for pubkeyY
       }
     });
 
