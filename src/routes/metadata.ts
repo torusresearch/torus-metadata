@@ -372,6 +372,9 @@ router.post(
       const key = constructKey(pubKeyX, pubKeyY, NAMESPACES.nonceV2);
       const keyForPubNonce = constructKey(pubKeyX, pubKeyY, NAMESPACES.pubNonceV2);
 
+      const lockKey = `metadata-lock-${key}`;
+      const lock = await redlock.acquire([lockKey], 5000);
+      
       // if not check if v2 has been created before
       let nonce: string;
       let pubNonce: string | { x: string; y: string };
@@ -424,8 +427,6 @@ router.post(
 
       // its a new v2 user, lets set his nonce
       if (!nonce) {
-        const lockKey = `metadata-lock-${key}`;
-        const lock = await redlock.acquire([lockKey], 5000);
         try {
           // check if someone else has set it
           nonce = await getNonce(true);
