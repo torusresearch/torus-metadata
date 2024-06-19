@@ -429,7 +429,6 @@ router.post(
         // check if someone else has set it
         let nonceExists = false;
         try {
-          // check if someone else has set it
           nonce = await getNonce(true);
           if (nonce) {
             pubNonce = await getPubNonce(true);
@@ -452,7 +451,6 @@ router.post(
                 { key: keyForPubNonce, value: pubNonceStr },
               ],
             ]);
-            lock.extend(5000);
           }
         } finally {
           // Release the lock.
