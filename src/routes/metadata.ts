@@ -426,11 +426,14 @@ router.post(
       if (!nonce) {
         const lockKey = `metadata-lock-${key}`;
         const lock = await redlock.acquire([lockKey], 5000);
+        // check if someone else has set it
+        let nonceExists = false;
         try {
           // check if someone else has set it
           nonce = await getNonce(true);
           if (nonce) {
             pubNonce = await getPubNonce(true);
+            nonceExists = true;
           } else {
             // create new nonce
             nonce = generatePrivate().toString("hex");
@@ -449,15 +452,25 @@ router.post(
                 { key: keyForPubNonce, value: pubNonceStr },
               ],
             ]);
-            [ipfs] = await Promise.all([
-              getHashAndWriteAsync({ [tableName]: [{ key, value: pubNonceStr }] }),
-              redis.setEx(key, REDIS_TIMEOUT, nonce).catch((error) => log.warn("redis set failed", error)),
-              redis.setEx(keyForPubNonce, REDIS_TIMEOUT, pubNonceStr).catch((error) => log.warn("redis set failed", error)),
-            ]);
+            lock.extend(5000);
           }
         } finally {
           // Release the lock.
-          await lock.release();
+          if (lock && lock.expiration > Date.now()) {
+            await lock.release();
+          } else {
+            log.error("lock expired before release");
+          }
+        }
+
+        // write to ipfs and redis
+        if (!nonceExists) {
+          const pubNonceStr = JSON.stringify(pubNonce);
+          [ipfs] = await Promise.all([
+            getHashAndWriteAsync({ [tableName]: [{ key, value: pubNonceStr }] }),
+            redis.setEx(key, REDIS_TIMEOUT, nonce).catch((error) => log.warn("redis set failed", error)),
+            redis.setEx(keyForPubNonce, REDIS_TIMEOUT, pubNonceStr).catch((error) => log.warn("redis set failed", error)),
+          ]);
         }
       }
 
