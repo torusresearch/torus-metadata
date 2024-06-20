@@ -1,4 +1,6 @@
-/* eslint-disable import/first */
+import "./utils/sentry";
+
+import * as Sentry from "@sentry/node";
 import { errors } from "celebrate";
 import compression from "compression";
 import cors from "cors";
@@ -21,7 +23,6 @@ dotenv.config({
 // bring all routes here
 import { setupIoListeners, setupSocketIo, setupSocketMiddleware } from "./database/socket";
 import routes from "./routes";
-import { registerSentry, registerSentryErrorHandler } from "./utils/sentry";
 import { traceContextMiddleware } from "./utils/traceContext";
 
 const app = express();
@@ -29,7 +30,6 @@ const http = createServer(app);
 
 app.set("trust proxy", 1);
 
-registerSentry(app);
 const io = setupSocketIo(http);
 setupIoListeners(io);
 
@@ -59,9 +59,12 @@ app.use(setupSocketMiddleware(io));
 app.use(traceContextMiddleware);
 
 app.use("/", routes);
-app.use(errors());
 
-registerSentryErrorHandler(app);
+// Add this after all routes,
+// but before any and other error-handling middlewares are defined
+Sentry.setupExpressErrorHandler(app);
+
+app.use(errors());
 
 const port = process.env.PORT || 5051;
 http.listen(port, () => log.info(`Server running on port: ${port}`));
