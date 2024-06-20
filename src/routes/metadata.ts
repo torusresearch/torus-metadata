@@ -372,9 +372,7 @@ router.post(
       const key = constructKey(pubKeyX, pubKeyY, NAMESPACES.nonceV2);
       const keyForPubNonce = constructKey(pubKeyX, pubKeyY, NAMESPACES.pubNonceV2);
 
-      const lockKey = `metadata-lock-${key}`;
-      const lock = await redlock.acquire([lockKey], 5000);
-      
+ 
       // if not check if v2 has been created before
       let nonce: string;
       let pubNonce: string | { x: string; y: string };
@@ -417,12 +415,15 @@ router.post(
         return JSON.parse(pubNonceVal as string);
       };
 
-      nonce = await getNonce();
+      const lockKey = `metadata-lock-${key}`;
+      const lock = await redlock.acquire([lockKey], 5000);
+      
+      nonce = await getNonce(true);
 
       if (nonce === "<v1>" || (!nonce && data !== "getOrSetNonce")) return res.json({ typeOfUser: "v1" }); // This is a v1 user who didn't have a nonce before we rolled out v2, if he sets his nonce in the future, this value will be ignored
 
       if (nonce) {
-        pubNonce = await getPubNonce();
+        pubNonce = await getPubNonce(true);
       }
 
       // its a new v2 user, lets set his nonce
