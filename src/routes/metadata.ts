@@ -426,17 +426,15 @@ router.post(
 
       // its a new v2 user, lets set his nonce
       if (!nonce) {
-        let lock;
+        const lockKey = `metadata-lock-${key}`;
+        const lock = await redlock.acquire([lockKey], 5000);
         let startTime = 0n;
         let gettingNonceTime = 0n;
         let gettingPubNonceTime = 0n;
         let insertingTime = 0n;
         let redisSetTime = 0n;
-        const lockKey = `metadata-lock-${key}`;
 
         try {
-          lock = await redlock.acquire([lockKey], 5000);
-
           startTime = process.hrtime.bigint();
           // check if someone else has set it
           nonce = await getNonce(true);
