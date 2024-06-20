@@ -340,6 +340,7 @@ router.post(
   validateGetOrSetNonceSignature,
   validateNamespace,
   async (req, res) => {
+    let lock;
     try {
       const {
         pub_key_X: pubKeyX,
@@ -372,7 +373,6 @@ router.post(
       const key = constructKey(pubKeyX, pubKeyY, NAMESPACES.nonceV2);
       const keyForPubNonce = constructKey(pubKeyX, pubKeyY, NAMESPACES.pubNonceV2);
 
- 
       // if not check if v2 has been created before
       let nonce: string;
       let pubNonce: string | { x: string; y: string };
@@ -416,8 +416,8 @@ router.post(
       };
 
       const lockKey = `metadata-lock-${key}`;
-      const lock = await redlock.acquire([lockKey], 5000);
-      
+      lock = await redlock.acquire([lockKey], 5000);
+
       nonce = await getNonce(true);
 
       if (nonce === "<v1>" || (!nonce && data !== "getOrSetNonce")) return res.json({ typeOfUser: "v1" }); // This is a v1 user who didn't have a nonce before we rolled out v2, if he sets his nonce in the future, this value will be ignored
@@ -428,38 +428,33 @@ router.post(
 
       // its a new v2 user, lets set his nonce
       if (!nonce) {
-        try {
-          // check if someone else has set it
-          nonce = await getNonce(true);
-          if (nonce) {
-            pubNonce = await getPubNonce(true);
-          } else {
-            // create new nonce
-            nonce = generatePrivate().toString("hex");
+        // check if someone else has set it
+        nonce = await getNonce(true);
+        if (nonce) {
+          pubNonce = await getPubNonce(true);
+        } else {
+          // create new nonce
+          nonce = generatePrivate().toString("hex");
 
-            const unformattedPubNonce = elliptic.keyFromPrivate(nonce).getPublic();
-            pubNonce = {
-              x: unformattedPubNonce.getX().toString("hex"),
-              y: unformattedPubNonce.getY().toString("hex"),
-            };
+          const unformattedPubNonce = elliptic.keyFromPrivate(nonce).getPublic();
+          pubNonce = {
+            x: unformattedPubNonce.getX().toString("hex"),
+            y: unformattedPubNonce.getY().toString("hex"),
+          };
 
-            // We just created new nonce and pub nonce above, write to db
-            const pubNonceStr = JSON.stringify(pubNonce);
-            await insertDataInBatchForTable(tableName, [
-              [
-                { key, value: nonce },
-                { key: keyForPubNonce, value: pubNonceStr },
-              ],
-            ]);
-            [ipfs] = await Promise.all([
-              getHashAndWriteAsync({ [tableName]: [{ key, value: pubNonceStr }] }),
-              redis.setEx(key, REDIS_TIMEOUT, nonce).catch((error) => log.warn("redis set failed", error)),
-              redis.setEx(keyForPubNonce, REDIS_TIMEOUT, pubNonceStr).catch((error) => log.warn("redis set failed", error)),
-            ]);
-          }
-        } finally {
-          // Release the lock.
-          await lock.release();
+          // We just created new nonce and pub nonce above, write to db
+          const pubNonceStr = JSON.stringify(pubNonce);
+          await insertDataInBatchForTable(tableName, [
+            [
+              { key, value: nonce },
+              { key: keyForPubNonce, value: pubNonceStr },
+            ],
+          ]);
+          [ipfs] = await Promise.all([
+            getHashAndWriteAsync({ [tableName]: [{ key, value: pubNonceStr }] }),
+            redis.setEx(key, REDIS_TIMEOUT, nonce).catch((error) => log.warn("redis set failed", error)),
+            redis.setEx(keyForPubNonce, REDIS_TIMEOUT, pubNonceStr).catch((error) => log.warn("redis set failed", error)),
+          ]);
         }
       }
 
@@ -478,6 +473,13 @@ router.post(
     } catch (error) {
       log.error("getOrSetNonce failed", error);
       return res.status(500).json({ error: getError(error), success: false });
+    } finally {
+      // Release the lock.
+      if (lock && lock.expiration > Date.now()) {
+        await lock.release();
+      } else {
+        log.error("lock expired before release");
+      }
     }
   }
 );
