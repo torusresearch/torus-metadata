@@ -49,6 +49,8 @@ const validateSetData = Joi.object({
   signature: Joi.string().max(88).required(),
 });
 
+const calculateTimeDifference = (start: bigint, end: bigint) => ((end - start) / BigInt(1e6)).toString(); // in milliseconds
+
 router.post(
   "/get",
   celebrate(
@@ -414,23 +416,32 @@ router.post(
         return JSON.parse(pubNonceVal as string);
       };
 
-      nonce = await getNonce();
+      nonce = await getNonce(true);
 
       if (nonce === "<v1>" || (!nonce && data !== "getOrSetNonce")) return res.json({ typeOfUser: "v1" }); // This is a v1 user who didn't have a nonce before we rolled out v2, if he sets his nonce in the future, this value will be ignored
 
       if (nonce) {
-        pubNonce = await getPubNonce();
+        pubNonce = await getPubNonce(true);
       }
 
       // its a new v2 user, lets set his nonce
       if (!nonce) {
         const lockKey = `metadata-lock-${key}`;
         const lock = await redlock.acquire([lockKey], 5000);
+        let startTime = 0n;
+        let gettingNonceTime = 0n;
+        let gettingPubNonceTime = 0n;
+        let insertingTime = 0n;
+        let redisSetTime = 0n;
+
         try {
+          startTime = process.hrtime.bigint();
           // check if someone else has set it
           nonce = await getNonce(true);
+          gettingNonceTime = process.hrtime.bigint();
           if (nonce) {
             pubNonce = await getPubNonce(true);
+            gettingPubNonceTime = process.hrtime.bigint();
           } else {
             // create new nonce
             nonce = generatePrivate().toString("hex");
@@ -449,15 +460,29 @@ router.post(
                 { key: keyForPubNonce, value: pubNonceStr },
               ],
             ]);
+            insertingTime = process.hrtime.bigint();
             [ipfs] = await Promise.all([
               getHashAndWriteAsync({ [tableName]: [{ key, value: pubNonceStr }] }),
               redis.setEx(key, REDIS_TIMEOUT, nonce).catch((error) => log.warn("redis set failed", error)),
               redis.setEx(keyForPubNonce, REDIS_TIMEOUT, pubNonceStr).catch((error) => log.warn("redis set failed", error)),
             ]);
+            redisSetTime = process.hrtime.bigint();
           }
         } finally {
           // Release the lock.
-          await lock.release();
+          if (lock && lock.expiration > Date.now()) {
+            await lock.release();
+          } else {
+            const endTime = process.hrtime.bigint();
+            log.error("lock expired", {
+              lockKey,
+              timeTakeToGetNonce: calculateTimeDifference(gettingNonceTime, startTime),
+              timeTakenToGetPubNonce: calculateTimeDifference(gettingPubNonceTime, gettingNonceTime),
+              timeTakenToInsert: calculateTimeDifference(insertingTime, gettingPubNonceTime),
+              timeTakenToSetRedis: calculateTimeDifference(redisSetTime, insertingTime),
+              totalTimeTaken: calculateTimeDifference(endTime, startTime),
+            });
+          }
         }
       }
 

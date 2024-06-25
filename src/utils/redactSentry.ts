@@ -1,7 +1,7 @@
-import { Event } from "@sentry/node";
+import { ErrorEvent } from "@sentry/node";
 import { redactEventData } from "@toruslabs/loglevel-sentry";
 
-export default (event: Event): Event => {
+export default (event: ErrorEvent): ErrorEvent => {
   if (!event.request) return event;
 
   // Redact body for sentitive URLs.
