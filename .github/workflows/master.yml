@@ -71,8 +71,10 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$GITHUB_SHA
           echo "::set-output name=image::$ECR_REGISTRY/$ECR_REPOSITORY:$GITHUB_SHA"
       - name: Deploy
+        timeout-minutes: 10
         run: |
           aws ecs update-service --cluster $ECS_CLUSTER_METADATA --service $ECS_SERVICE_METADATA --force-new-deployment
+          aws ecs wait services-stable --cluster $ECS_CLUSTER_METADATA --service $ECS_SERVICE_METADATA
         env:
           ECS_CLUSTER_METADATA: prod-microservices
           ECS_SERVICE_METADATA: torus-metadata-service
@@ -112,8 +114,10 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$GITHUB_SHA
           echo "::set-output name=image::$ECR_REGISTRY/$ECR_REPOSITORY:$GITHUB_SHA"
       - name: Deploy
+        timeout-minutes: 10
         run: |
           aws ecs update-service --cluster $ECS_CLUSTER_METADATA --service $ECS_SERVICE_METADATA --force-new-deployment
+          aws ecs wait services-stable --cluster $ECS_CLUSTER_METADATA --service $ECS_SERVICE_METADATA
         env:
           ECS_CLUSTER_METADATA: prod-microservices
           ECS_SERVICE_METADATA: torus-metadata-service
