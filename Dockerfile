@@ -1,20 +1,14 @@
 FROM node:20-alpine
 
+ENV NODE_OPTIONS --max-old-space-size=4096
+
 WORKDIR /app
 
 COPY package*.json ./
 
-ENV NODE_OPTIONS --max-old-space-size=4096
+RUN npm install --omit=dev --ignore-scripts
 
-RUN apk add --no-cache --virtual .gyp \
-        python3 \
-        make \
-        g++ \
-        && npm ci && apk del .gyp
-
-COPY . .
-
-RUN npm run build
+COPY dist ./dist
 
 EXPOSE 5051
 
