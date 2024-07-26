@@ -1,16 +1,17 @@
 FROM node:20-alpine
 
-WORKDIR /app
-
-COPY package*.json ./
-
 ENV NODE_OPTIONS --max-old-space-size=4096
+
+WORKDIR /app
 
 RUN apk add --no-cache --virtual .gyp \
         python3 \
         make \
-        g++ \
-        && npm install && apk del .gyp
+        g++
+
+COPY package*.json ./
+
+RUN npm install && apk del .gyp
 
 COPY . .
 
