@@ -4,7 +4,7 @@ services:
   #   ports:
   #     - "5001:5001/tcp"
   redis:
-    image: redis
+    image: redis:6
     env_file:
       - ./.env.development
     ports:
@@ -15,7 +15,6 @@ services:
       test: redis-cli --raw incr ping
       timeout: 1s
   mysql:
-    # platform: linux/x86_64
     image: mysql:8
     command: --max_allowed_packet=67108864 # 64 MB
     env_file:

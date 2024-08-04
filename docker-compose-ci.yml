@@ -4,8 +4,7 @@ services:
   #   ports:
   #     - "5001:5001/tcp"
   redis:
-    restart: always
-    image: redis:6-alpine
+    image: redis:6
     env_file:
       - ./.env.development
     ports:
@@ -16,9 +15,8 @@ services:
       test: redis-cli --raw incr ping
       timeout: 1s
   mysql:
-    restart: always
-    platform: linux/x86_64
     image: mysql:8
+    command: --max_allowed_packet=67108864 # 64 MB
     env_file:
       - ./.env.development
     ports:
@@ -29,7 +27,6 @@ services:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       timeout: 1s
   torus-metadata:
-    restart: "no"
     depends_on:
       mysql:
         condition: service_healthy
