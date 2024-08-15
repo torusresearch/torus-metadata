@@ -4,8 +4,8 @@
   "description": "Torus metadata server",
   "main": "index.js",
   "scripts": {
-    "dev": "docker-compose -f docker-compose.dev.yml up --build",
-    "down": "docker-compose -f docker-compose.dev.yml down",
+    "dev": "docker compose -f docker-compose.dev.yml up --build",
+    "down": "docker compose -f docker-compose.dev.yml down",
     "serve": "nodemon --config nodemon.json src/index.ts",
     "build": "rimraf ./dist && tsc",
     "start": "ts-node src/index.ts",
@@ -15,8 +15,8 @@
     "lint:ts": "eslint --fix 'src/**/*.ts'",
     "prepare": "husky",
     "test": "cross-env NODE_ENV=development METADATA_ENV=development LOG_DEBUG=yes mocha",
-    "test:ci": "docker-compose -f docker-compose-ci.yml up --build --abort-on-container-exit --exit-code-from torus-metadata",
-    "down:ci": "docker-compose -f docker-compose-ci.yml down"
+    "test:ci": "docker compose -f docker-compose-ci.yml up --build --abort-on-container-exit --exit-code-from torus-metadata",
+    "down:ci": "docker compose -f docker-compose-ci.yml down"
   },
   "keywords": [],
   "author": "Chaitanya Potti",
