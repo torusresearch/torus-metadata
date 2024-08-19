@@ -12,7 +12,7 @@ import log from "loglevel";
 import morgan from "morgan";
 import path from "path";
 
-log.enableAll();
+log.setLevel((process.env.LOG_LEVEL as log.LogLevelDesc) || log.levels.INFO);
 
 const envPath = path.resolve(".", process.env.NODE_ENV !== "production" ? ".env.development" : ".env");
 // setup environment
