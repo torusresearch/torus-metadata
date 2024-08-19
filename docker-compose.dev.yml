@@ -4,27 +4,35 @@ services:
   #   ports:
   #     - "5001:5001/tcp"
   redis:
-    restart: always
-    image: redis
+    image: redis:6
     env_file:
       - ./.env.development
     ports:
       - "6379:6379"
+    healthcheck:
+      interval: 5s
+      retries: 5
+      test: redis-cli --raw incr ping
+      timeout: 1s
   mysql:
-    restart: always
-    # platform: linux/x86_64
     image: mysql:8
     command: --max_allowed_packet=67108864 # 64 MB
     env_file:
       - ./.env.development
     ports:
       - "3306:3306"
+    healthcheck:
+      interval: 5s
+      retries: 5
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 1s
   torus-metadata:
-    restart: always
     depends_on:
-      - mysql
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
       # - ipfs
-      - redis
     build:
       context: .
       dockerfile: Dockerfile.dev
