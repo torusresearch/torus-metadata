@@ -40,9 +40,26 @@ http.headersTimeout = 305 * 1000;
 const corsOptions = {
   //   origin: ["https://localhost:3000", /\.tor\.us$/],
   origin: true,
-  credentials: false,
-  allowedHeaders: ["Content-Type", "x-api-key", "x-embed-host", "sentry-trace", "baggage"],
-  methods: "GET,POST",
+  credentials: true,
+  allowedHeaders: [
+    "Content-Type",
+    "x-api-key",
+    "x-embed-host",
+    "sentry-trace",
+    "baggage",
+    "x-web3-correlation-id",
+    "pubkeyx",
+    "pubkeyy",
+    "verifier",
+    "verifier_id",
+    "verifierId",
+    "clientId",
+    "network",
+    "enable_gating",
+    "enableGating",
+    "authorization",
+  ],
+  methods: "GET,PUT,PATCH,POST,DELETE",
   maxAge: 86400,
 };
 
@@ -58,7 +75,7 @@ app.use(express.json({ limit: "20mb" })); // converts body to json
 app.use(setupSocketMiddleware(io));
 app.use(traceContextMiddleware);
 
-app.use("/", routes);
+app.use(["/metadata-service", "/"], routes);
 
 // Add this after all routes,
 // but before any and other error-handling middlewares are defined
