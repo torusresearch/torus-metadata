@@ -39,15 +39,18 @@ router.post(
         try {
           const id = randomID();
           await redis.setEx(pubKey, REDIS_LOCK_TIMEOUT, id);
-          return res.json({ status: 1, id });
+          res.json({ status: 1, id });
+          return;
         } catch (error) {
           log.warn("redis set failed", error);
         }
       }
-      return res.json({ status: 0 });
+      res.json({ status: 0 });
+      return;
     } catch (error) {
       log.error("acquire lock failed", error);
-      return res.status(500).json({ error: getError(error), success: false });
+      res.status(500).json({ error: getError(error), success: false });
+      return;
     }
   }
 );
@@ -80,20 +83,24 @@ router.post(
         // No lock exists
         // Redis_timeout auto clear or no lock was ever created
         // this can happen when bulk_set operation after acquiring lock takes a lot of time.
-        return res.json({ status: 1 });
+        res.json({ status: 1 });
+        return;
       }
       if (value === id) {
         try {
           await redis.del(key);
-          return res.json({ status: 1 });
+          res.json({ status: 1 });
+          return;
         } catch (error) {
           log.warn("redis delete failed", error);
         }
       }
-      return res.json({ status: 2 });
+      res.json({ status: 2 });
+      return;
     } catch (error) {
       log.error("release lock failed", error);
-      return res.status(500).json({ error: getError(error), success: false });
+      res.status(500).json({ error: getError(error), success: false });
+      return;
     }
   }
 );

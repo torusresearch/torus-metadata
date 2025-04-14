@@ -12,9 +12,11 @@ export const validateDataTimeStamp = async (req: Request, res: Response, next: N
   const timeParsed = parseInt(timestamp, 16);
   if (~~(Date.now() / 1000) - timeParsed > 600) {
     log.error("[validateDataTimeStamp] Message has been signed more than 600s ago", { currentTime: ~~(Date.now() / 1000), timeParsed });
-    return res.status(403).json({ error: { timestamp: "Message has been signed more than 600s ago" }, success: false });
+    res.status(403).json({ error: { timestamp: "Message has been signed more than 600s ago" }, success: false });
+    return;
   }
-  return next();
+  next();
+  return;
 };
 
 export const validateMetadataLoopInput = (key: string) => (req: Request, res: Response, next: NextFunction) => {
@@ -27,10 +29,11 @@ export const validateMetadataLoopInput = (key: string) => (req: Request, res: Re
     if (~~(Date.now() / 1000) - timeParsed > 600) {
       const errors = { index, timestamp: "Message has been signed more than 600s ago" };
       log.error("[validateMetadataLoopInput]", { currentTime: ~~(Date.now() / 1000), timeParsed, errors });
-      return res.status(403).json({ error: errors, success: false });
+      res.status(403).json({ error: errors, success: false });
+      return;
     }
   }
-  return next();
+  next();
 };
 
 export const validateSignature = async (req: Request, res: Response, next: NextFunction) => {
@@ -40,12 +43,15 @@ export const validateSignature = async (req: Request, res: Response, next: NextF
 
     if (!isValid) {
       log.error("Invalid signature", { setDataInput });
-      return res.status(403).json({ error: { signature: "Invalid signature" }, success: false });
+      res.status(403).json({ error: { signature: "Invalid signature" }, success: false });
+      return;
     }
-    return next();
+    next();
+    return;
   } catch (error) {
     log.error("signature verification failed", error);
-    return res.status(500).json({ error: getError(error), success: false });
+    res.status(500).json({ error: getError(error), success: false });
+    return;
   }
 };
 
@@ -58,25 +64,30 @@ export const validateLoopSignature = (key: string) => (req: Request, res: Respon
       if (!isValid) {
         const errors = { index, signature: "Invalid signature" };
         log.error("Invalid signature", { index, param });
-        return res.status(403).json({ error: errors, success: false });
+        res.status(403).json({ error: errors, success: false });
+        return;
       }
     } catch (error: unknown) {
       (error as { index: number }).index = index;
       log.error("signature verification failed", error);
-      return res.status(500).json({ error: getError(error), success: false });
+      res.status(500).json({ error: getError(error), success: false });
+      return;
     }
   }
-  return next();
+  next();
+  return;
 };
 
 export const validateNamespace = (req: Request, res: Response, next: NextFunction) => {
   try {
     const { namespace } = req.body;
     req.body.tableName = getDBTableName(namespace); // function will validate namespace too
-    return next();
+    next();
+    return;
   } catch (error) {
     log.error(error);
-    return res.status(500).json({ error: getError(error), success: false });
+    res.status(500).json({ error: getError(error), success: false });
+    return;
   }
 };
 
@@ -87,7 +98,8 @@ export const validateNamespaceLoop = (key: string) => (req: Request, _: Response
     const { namespace } = param;
     param.tableName = getDBTableName(namespace);
   }
-  return next();
+  next();
+  return;
 };
 
 export const validateLockData = (req: Request, res: Response, next: NextFunction) => {
@@ -97,18 +109,21 @@ export const validateLockData = (req: Request, res: Response, next: NextFunction
     if (!isValid) {
       const errors = { signature: "Invalid signature" };
       log.error("[validateLockData] Invalid signature", { val });
-      return res.status(403).json({ error: errors, success: false });
+      res.status(403).json({ error: errors, success: false });
+      return;
     }
     const { timestamp } = val.data;
     const timeParsed = parseInt(timestamp, 16);
     if (~~(Date.now() / 1000) - timeParsed > 600) {
       log.error("[validateLockData] Message has been signed more than 600s ago", { currentTime: ~~(Date.now() / 1000), timeParsed });
-      return res.status(403).json({ error: { message: "Message has been signed more than 600s ago" }, success: false });
+      res.status(403).json({ error: { message: "Message has been signed more than 600s ago" }, success: false });
+      return;
     }
-    return next();
+    next();
   } catch (error) {
     log.error(error);
-    return res.status(500).json({ error: getError(error), status: 0 });
+    res.status(500).json({ error: getError(error), status: 0 });
+    return;
   }
 };
 
@@ -131,20 +146,23 @@ export const validateGetOrSetNonceSetInput = async (req: Request, res: Response,
     timestamp: Joi.string().hex().required(),
   }).validate(setData);
   if (error) {
-    return res.status(400).json({ error, success: false });
+    res.status(400).json({ error, success: false });
+    return;
   }
   const { timestamp, data } = setData;
 
   if (!["getOrSetNonce", "getNonce"].includes(data)) {
     log.error("Should be equal to 'getOrSetNonce' or 'getNonce'", { data });
-    return res.status(403).json({ error: { data: "Should be equal to 'getOrSetNonce' or 'getNonce'" }, success: false });
+    res.status(403).json({ error: { data: "Should be equal to 'getOrSetNonce' or 'getNonce'" }, success: false });
+    return;
   }
   const timeParsed = parseInt(timestamp, 16);
   if (~~(Date.now() / 1000) - timeParsed > 600) {
     log.error("[validateGetOrSetNonceSetInput] Message has been signed more than 600s ago", { currentTime: ~~(Date.now() / 1000), timeParsed });
-    return res.status(403).json({ error: { timestamp: "Message has been signed more than 600s ago" }, success: false });
+    res.status(403).json({ error: { timestamp: "Message has been signed more than 600s ago" }, success: false });
+    return;
   }
-  return next();
+  next();
 };
 
 export const validateGetOrSetNonceSignature = async (req: Request, res: Response, next: NextFunction) => {
@@ -157,12 +175,15 @@ export const validateGetOrSetNonceSignature = async (req: Request, res: Response
     const isValid = isValidSignature(body);
     if (!isValid) {
       log.error("[validateGetOrSetNonceSignature] Invalid signature", { body });
-      return res.status(403).json({ error: { signature: "Invalid Signature" }, success: false });
+      res.status(403).json({ error: { signature: "Invalid Signature" }, success: false });
+      return;
     }
-    return next();
+    next();
+    return;
   } catch (error) {
     log.error("signature verification failed", error);
-    return res.status(500).json({ error: getError(error), success: false });
+    res.status(500).json({ error: getError(error), success: false });
+    return;
   }
 };
 
@@ -171,9 +192,11 @@ export const serializeStreamBody = (req: Request, res: Response, next: NextFunct
     const stream = req.body;
     const shares: SetDataInput[] = Object.values(stream).map((el) => JSON.parse(el as string) as SetDataInput);
     req.body = { shares };
-    return next();
+    next();
+    return;
   } catch (error) {
     log.error("serializeStreamBody internal error", error);
-    return res.status(500).json({ error: getError(error), status: 0 });
+    res.status(500).json({ error: getError(error), status: 0 });
+    return;
   }
 };
