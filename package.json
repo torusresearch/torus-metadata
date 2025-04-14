@@ -6,15 +6,16 @@
   "scripts": {
     "dev": "docker compose -f docker-compose.dev.yml up --build",
     "down": "docker compose -f docker-compose.dev.yml down",
-    "serve": "nodemon --config nodemon.json src/index.ts",
+    "serve": "tsx watch --env-file=.env.development src/index.ts",
     "build": "rimraf ./dist && tsc",
-    "start": "ts-node src/index.ts",
+    "start": "tsx src/index.ts",
     "prod": "node dist/index.js",
-    "migrate": "npx knex migrate:unlock --knexfile ./src/database/knexfile.ts && npx knex migrate:latest --knexfile ./src/database/knexfile.ts",
-    "migrate:down": "npx knex migrate:down --knexfile ./src/database/knexfile.ts",
+    "migrate": "npm run migrate:down && npm run migrate:latest",
+    "migrate:latest": "NODE_OPTIONS='--import tsx' npx knex migrate:latest --knexfile ./src/database/knexfile.ts",
+    "migrate:down": "NODE_OPTIONS='--import tsx' npx knex migrate:down --knexfile ./src/database/knexfile.ts",
     "lint:ts": "eslint --fix 'src/**/*.ts'",
     "prepare": "husky",
-    "test": "cross-env NODE_ENV=development METADATA_ENV=development LOG_DEBUG=yes mocha",
+    "test": "vitest run --config=test/node.config.mts",
     "test:ci": "docker compose -f docker-compose-ci.yml up --build --abort-on-container-exit --exit-code-from torus-metadata",
     "down:ci": "docker compose -f docker-compose-ci.yml down"
   },
@@ -58,22 +59,18 @@
     "@types/elliptic": "^6.4.18",
     "@types/express": "^5.0.1",
     "@types/json-stable-stringify": "^1.2.0",
-    "@types/mocha": "^10.0.9",
     "@types/morgan": "^1.9.9",
     "@types/multer": "^1.4.12",
     "@types/node": "^22.14.1",
     "atob": "^2.1.2",
     "btoa": "^1.2.1",
-    "chai": "^4.4.1",
-    "chai-http": "^4.4.0",
     "cross-env": "^7.0.3",
     "eslint": "^9.24.0",
     "husky": "^9.1.7",
-    "mocha": "^10.8.2",
-    "nodemon": "^3.1.7",
     "prettier": "^3.5.3",
-    "ts-node": "^10.9.2",
+    "tsx": "^4.19.3",
     "typescript": "^5.8.3",
+    "vitest": "^3.1.1",
     "wait-port": "^1.1.0"
   },
   "lint-staged": {
@@ -94,7 +91,7 @@
   },
   "homepage": "https://github.com/torusresearch/torus-metadata#readme",
   "engines": {
-    "node": ">=16.18.1",
-    "npm": ">=8.x"
+    "node": ">=20.x",
+    "npm": ">=9.x"
   }
 }
