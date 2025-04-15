@@ -16,9 +16,7 @@ log.setLevel((process.env.LOG_LEVEL as log.LogLevelDesc) || log.levels.INFO);
 
 const envPath = path.resolve(".", process.env.NODE_ENV !== "production" ? ".env.development" : ".env");
 // setup environment
-dotenv.config({
-  path: envPath,
-});
+dotenv.config({ path: envPath });
 
 // bring all routes here
 import { setupIoListeners, setupSocketIo, setupSocketMiddleware } from "./database/socket";
@@ -78,7 +76,8 @@ app.use(express.json({ limit: "20mb" })); // converts body to json
 app.use(setupSocketMiddleware(io));
 app.use(traceContextMiddleware);
 
-app.use(["/metadata-service", "/"], routes);
+app.use("/metadata-service", routes);
+app.use("/", routes);
 
 // Add this after all routes,
 // but before any and other error-handling middlewares are defined

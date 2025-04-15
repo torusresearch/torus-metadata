@@ -84,10 +84,12 @@ router.post(
         const data = await knexRead(tableName).where({ key }).orderBy("created_at", "desc").orderBy("id", "desc").first();
         value = data?.value || "";
       }
-      return res.json({ message: value });
+      res.json({ message: value });
+      return;
     } catch (error) {
       log.error("get metadata failed", error);
-      return res.status(500).json({ error: getError(error), success: false });
+      res.status(500).json({ error: getError(error), success: false });
+      return;
     }
   }
 );
@@ -100,7 +102,7 @@ router.post(
   validateNamespace,
   validateDataTimeStamp,
   validateSignature,
-  async (req, res) => {
+  async (req: Request, res: Response) => {
     try {
       const {
         namespace = "",
@@ -111,7 +113,8 @@ router.post(
       }: SetDataInput = req.body;
 
       if (RESERVED_NAMESPACES.includes(namespace)) {
-        return res.status(400).json({ error: `${namespace} namespace is a reserved namespace`, success: false });
+        res.status(400).json({ error: `${namespace} namespace is a reserved namespace`, success: false });
+        return;
       }
 
       const key = constructKey(pubKeyX, pubKeyY, namespace);
@@ -127,10 +130,12 @@ router.post(
       }
 
       const ipfsResult = await getHashAndWriteAsync({ [tableName]: [{ key, value: data }] });
-      return res.json({ message: ipfsResult });
+      res.json({ message: ipfsResult });
+      return;
     } catch (error) {
       log.error("set metadata failed", error);
-      return res.status(500).json({ error: getError(error), success: false });
+      res.status(500).json({ error: getError(error), success: false });
+      return;
     }
   }
 );
@@ -189,10 +194,12 @@ router.post(
       }
 
       const ipfsResult = await getHashAndWriteAsync(requiredData);
-      return res.json({ message: ipfsResult });
+      res.json({ message: ipfsResult });
+      return;
     } catch (error) {
       log.error("bulk set metadata failed", error);
-      return res.status(500).json({ error: getError(error), success: false });
+      res.status(500).json({ error: getError(error), success: false });
+      return;
     }
   }
 );
@@ -278,10 +285,12 @@ router.post(
       );
 
       const ipfsResult = await getHashAndWriteAsync(requiredData);
-      return res.json({ message: ipfsResult });
+      res.json({ message: ipfsResult });
+      return;
     } catch (error) {
       log.error("set stream metadata failed", error);
-      return res.status(500).json({ error: getError(error), success: false });
+      res.status(500).json({ error: getError(error), success: false });
+      return;
     }
   }
 );
@@ -315,10 +324,12 @@ if (process.env.METADATA_ENV === "development") {
           log.warn("redis set failed", error);
         }
 
-        return res.json({});
+        res.json({});
+        return;
       } catch (error) {
         log.error("set_nonce failed", error);
-        return res.status(500).json({ error: getError(error), success: false });
+        res.status(500).json({ error: getError(error), success: false });
+        return;
       }
     }
   );
@@ -341,7 +352,7 @@ router.post(
   validateGetOrSetNonceSetInput,
   validateGetOrSetNonceSignature,
   validateNamespace,
-  async (req, res) => {
+  async (req: Request, res: Response) => {
     try {
       const {
         pub_key_X: pubKeyX,
@@ -368,7 +379,8 @@ router.post(
       }
 
       if (oldValue) {
-        return res.json({ typeOfUser: "v1", nonce: oldValue });
+        res.json({ typeOfUser: "v1", nonce: oldValue });
+        return;
       }
 
       const key = constructKey(pubKeyX, pubKeyY, NAMESPACES.nonceV2);
@@ -418,7 +430,10 @@ router.post(
 
       nonce = await getNonce(true);
 
-      if (nonce === "<v1>" || (!nonce && data !== "getOrSetNonce")) return res.json({ typeOfUser: "v1" }); // This is a v1 user who didn't have a nonce before we rolled out v2, if he sets his nonce in the future, this value will be ignored
+      if (nonce === "<v1>" || (!nonce && data !== "getOrSetNonce")) {
+        res.json({ typeOfUser: "v1" });
+        return;
+      } // This is a v1 user who didn't have a nonce before we rolled out v2, if he sets his nonce in the future, this value will be ignored
 
       if (nonce) {
         pubNonce = await getPubNonce(true);
@@ -497,10 +512,12 @@ router.post(
         // if account is 1/1 and there's a valid sig, return nonce
         returnResponse.nonce = nonce;
       }
-      return res.json(returnResponse);
+      res.json(returnResponse);
+      return;
     } catch (error) {
       log.error("getOrSetNonce failed", error);
-      return res.status(500).json({ error: getError(error), success: false });
+      res.status(500).json({ error: getError(error), success: false });
+      return;
     }
   }
 );

@@ -20,7 +20,7 @@ export function setupSocketIo(http: HttpServer): Server {
   const subClient = redis.duplicate();
 
   Promise.all([redis.connect(), subClient.connect()])
-    .then(() => {
+    .then((): unknown => {
       io.adapter(createAdapter(redis, subClient));
       log.debug("connected socket to redis");
       return null;
