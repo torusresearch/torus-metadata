@@ -1,43 +1,29 @@
-/* eslint-disable */
-/* eslint-disable node/no-extraneous-require */
-/* eslint-disable @typescript-eslint/no-var-requires */
-/* eslint-disable node/no-unpublished-require */
-
-const { TorusStorageLayer } = require("@tkey/storage-layer-torus");
-const { encrypt, getPubKeyECC } = require("@tkey/common-types");
-const stringify = require("json-stable-stringify");
-const { post } = require("@toruslabs/http-helpers");
-
-// During the test the env variable is set to test
-// Require the dev-dependencies
-const chai = require("chai");
-const chaiHttp = require("chai-http");
-const BN = require("bn.js");
-const { generatePrivate } = require("@toruslabs/eccrypto");
+/* eslint-disable import/no-extraneous-dependencies */
+/* eslint-disable n/no-extraneous-import */
+/* eslint-disable n/no-unsupported-features/node-builtins */
+import { getPubKeyECC } from "@tkey/common-types";
+import { TorusStorageLayer } from "@tkey/storage-layer-torus";
+import { encrypt, generatePrivate } from "@toruslabs/eccrypto";
+import { BN } from "bn.js";
+import { stringify } from "querystring";
+import { assert, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 const port = 5051;
 const host = process.env.HOST || "localhost";
 const server = `http://${host}:${port}`;
-chai.use(chaiHttp);
-const { assert, request } = chai;
-
 const randomID = () => `${Math.random().toString(36).substring(2, 9)}`;
-
-/**
- * Testing API calls.
- */
 describe("API-calls", function () {
   describe("/default", function () {
-    it("it should return a welcome message", async function () {
-      const res = await request(server).get("/");
-      assert.strictEqual(res.status, 200);
-      assert.strictEqual(res.text, "Welcome to Torus Metadata");
+    it("should return a welcome message", async function () {
+      const res = await fetch(`${server}/`);
+      expect(res.status).toBe(200);
+      expect(await res.text()).toBe("Welcome to Torus Metadata");
     });
 
-    it("it should return ok message", async function () {
-      const res = await request(server).get("/health");
-      assert.strictEqual(res.status, 200);
-      assert.strictEqual(res.text, "Ok!");
+    it("should return ok message", async function () {
+      const res = await fetch(`${server}/health`);
+      expect(res.status).toBe(200);
+      expect(await res.text()).toBe("Ok!");
     });
   });
 
@@ -56,16 +42,21 @@ describe("API-calls", function () {
 
       const bufferMetadata = Buffer.from(stringify(message));
       const encryptedDetails = await encrypt(getPubKeyECC(PRIVATE_KEY), bufferMetadata);
+      // @ts-expect-error testing
       const serializedEncryptedDetails = globalThis.btoa(stringify(encryptedDetails));
 
       const metadataParams = storageLayer.generateMetadataParams(serializedEncryptedDetails, undefined, PRIVATE_KEY);
       metadataParams.signature = ""; // remove signature
-      try {
-        await post(`${server}/set`, metadataParams);
-      } catch (err) {
-        const val = await err.json();
-        assert.deepStrictEqual(val.validation.body.message, '"signature" is not allowed to be empty');
-      }
+      const res = await fetch(`${server}/set`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(metadataParams),
+      });
+      expect(res.status).toBe(400);
+      const val = await res.json();
+      expect(val.validation.body.message).toBe('"signature" is not allowed to be empty');
     });
 
     it("#it should reject if pubKeyX/pubKeyY field is missing", async function () {
@@ -75,16 +66,21 @@ describe("API-calls", function () {
 
       const bufferMetadata = Buffer.from(stringify(message));
       const encryptedDetails = await encrypt(getPubKeyECC(PRIVATE_KEY), bufferMetadata);
+      // @ts-expect-error testing
       const serializedEncryptedDetails = globalThis.btoa(stringify(encryptedDetails));
 
       const metadataParams = storageLayer.generateMetadataParams(serializedEncryptedDetails, undefined, PRIVATE_KEY);
       metadataParams.pub_key_X = ""; // remove signature
-      try {
-        await post(`${server}/set`, metadataParams);
-      } catch (err) {
-        const val = await err.json();
-        assert.deepStrictEqual(val.validation.body.message, '"pub_key_X" is not allowed to be empty');
-      }
+      const res = await fetch(`${server}/set`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(metadataParams),
+      });
+      expect(res.status).toBe(400);
+      const val = await res.json();
+      expect(val.validation.body.message).toBe('"pub_key_X" is not allowed to be empty');
     });
 
     it("#it should reject if the timestamp is missing", async function () {
@@ -94,16 +90,22 @@ describe("API-calls", function () {
 
       const bufferMetadata = Buffer.from(stringify(message));
       const encryptedDetails = await encrypt(getPubKeyECC(PRIVATE_KEY), bufferMetadata);
+      // @ts-expect-error testing
       const serializedEncryptedDetails = globalThis.btoa(stringify(encryptedDetails));
 
       const metadataParams = storageLayer.generateMetadataParams(serializedEncryptedDetails, undefined, PRIVATE_KEY);
+      // @ts-expect-error testing
       metadataParams.set_data.timestamp = ""; // remove signature
-      try {
-        await post(`${server}/set`, metadataParams);
-      } catch (err) {
-        const val = await err.json();
-        assert.deepStrictEqual(val.validation.body.message, '"set_data.timestamp" is not allowed to be empty');
-      }
+      const res = await fetch(`${server}/set`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(metadataParams),
+      });
+      expect(res.status).toBe(400);
+      const val = await res.json();
+      expect(val.validation.body.message).toBe('"set_data.timestamp" is not allowed to be empty');
     });
 
     it("#it should reject if the timestamp is old", async function () {
@@ -113,16 +115,22 @@ describe("API-calls", function () {
 
       const bufferMetadata = Buffer.from(stringify(message));
       const encryptedDetails = await encrypt(getPubKeyECC(PRIVATE_KEY), bufferMetadata);
+      // @ts-expect-error testing
       const serializedEncryptedDetails = globalThis.btoa(stringify(encryptedDetails));
 
       const metadataParams = storageLayer.generateMetadataParams(serializedEncryptedDetails, undefined, PRIVATE_KEY);
+      // @ts-expect-error testing
       metadataParams.set_data.timestamp = new BN(~~(Date.now() / 1000) - 605).toString(16);
-      try {
-        await post(`${server}/set`, metadataParams);
-      } catch (err) {
-        const val = await err.json();
-        assert.deepStrictEqual(val.error.timestamp, "Message has been signed more than 600s ago"); // same goes for pubkeyY
-      }
+      const res = await fetch(`${server}/set`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(metadataParams),
+      });
+      expect(res.status).toBe(403);
+      const val = await res.json();
+      expect(val.error.timestamp).toBe("Message has been signed more than 600s ago"); // same goes for pubkeyY
     });
 
     it("#it should reject if signature is invalid", async function () {
@@ -132,16 +140,22 @@ describe("API-calls", function () {
 
       const bufferMetadata = Buffer.from(stringify(message));
       const encryptedDetails = await encrypt(getPubKeyECC(PRIVATE_KEY), bufferMetadata);
+      // @ts-expect-error testing
       const serializedEncryptedDetails = globalThis.btoa(stringify(encryptedDetails));
 
       const metadataParams = storageLayer.generateMetadataParams(serializedEncryptedDetails, undefined, PRIVATE_KEY);
+      // @ts-expect-error testing
       metadataParams.set_data.timestamp = new BN(~~(Date.now() / 1000) - 10).toString(16); // change timestamp, signature no longer valid
-      try {
-        await post(`${server}/set`, metadataParams);
-      } catch (err) {
-        const val = await err.json();
-        assert.deepStrictEqual(val.error.signature, "Invalid signature"); // same goes for pubkeyY
-      }
+      const res = await fetch(`${server}/set`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(metadataParams),
+      });
+      expect(res.status).toBe(403);
+      const val = await res.json();
+      expect(val.error.signature).toBe("Invalid signature"); // same goes for pubkeyY
     });
 
     it("#it should be able to set/get metadata with correct validation", async function () {
@@ -151,6 +165,7 @@ describe("API-calls", function () {
 
       await storageLayer.setMetadata({ input: message, privKey: PRIVATE_KEY });
       const data = await storageLayer.getMetadata({ privKey: PRIVATE_KEY });
+      // @ts-expect-error testing
       assert.strictEqual(data.test, message.test);
     });
   });
@@ -160,21 +175,11 @@ describe("API-calls", function () {
     let messages = [];
     let privateKeys = [];
     let finalMetadataParams = [];
-    const options = {
-      mode: "cors",
-      method: "POST",
-      headers: {
-        "Content-Type": undefined,
-      },
-    };
-
-    const customOptions = {
-      isUrlEncodedData: true,
-    };
 
     beforeEach(async function () {
       messages = [];
       for (let i = 0; i < 4; i += 1) {
+        // @ts-expect-error testing
         messages.push({
           test: Math.random().toString(36).substring(7),
         });
@@ -182,14 +187,17 @@ describe("API-calls", function () {
 
       privateKeys = [];
       for (let i = 0; i < 4; i += 1) {
+        // @ts-expect-error testing
         privateKeys.push(generatePrivate().toString("hex"));
       }
 
       finalMetadataParams = [];
+      // @ts-expect-error testing
       finalMetadataParams = await Promise.all(
         messages.map(async (el, i) => {
           const bufferMetadata = Buffer.from(stringify(el));
           const encryptedDetails = await encrypt(getPubKeyECC(privateKeys[i]), bufferMetadata);
+          // @ts-expect-error testing
           const serializedEncryptedDetails = globalThis.btoa(stringify(encryptedDetails));
           const metadataParams = storageLayer.generateMetadataParams(serializedEncryptedDetails, undefined, privateKeys[i]);
           return metadataParams;
@@ -203,57 +211,68 @@ describe("API-calls", function () {
         FD.append(index.toString(), "");
       });
 
-      try {
-        await post(`${server}/bulk_set_stream`, FD, options, customOptions);
-      } catch (err) {
-        const { error } = await err.json();
-        assert.deepStrictEqual(error.message, "Unexpected end of JSON input"); // same goes for pubkeyY
-      }
+      const res = await fetch(`${server}/bulk_set_stream`, {
+        method: "POST",
+        body: FD,
+      });
+      expect(res.status).toBe(500);
+      const val = await res.json();
+
+      expect(val.error.message).toBe("Unexpected end of JSON input");
     });
 
     it("#it should reject if one of the shares has missing pubkey", async function () {
+      // @ts-expect-error testing
       finalMetadataParams[0].pub_key_X = "";
       const FD = new FormData();
       finalMetadataParams.forEach((el, index) => {
         FD.append(index.toString(), JSON.stringify(el));
       });
 
-      try {
-        await post(`${server}/bulk_set_stream`, FD, options, customOptions);
-      } catch (err) {
-        const error = await err.json();
-        assert.deepStrictEqual(error.validation.body.message, '"shares[0].pub_key_X" is not allowed to be empty'); // same goes for pubkeyY
-      }
+      const res = await fetch(`${server}/bulk_set_stream`, {
+        method: "POST",
+        body: FD,
+      });
+
+      expect(res.status).toBe(400);
+      const val = await res.json();
+      expect(val.validation.body.message).toBe('"shares[0].pub_key_X" is not allowed to be empty'); // same goes for pubkeyY
     });
 
     it("#it should reject if one of the shares has an old timestamp", async function () {
+      // @ts-expect-error testing
       finalMetadataParams[0].set_data.timestamp = new BN(~~(Date.now() / 1000) - 605).toString(16);
       const FD = new FormData();
       finalMetadataParams.forEach((el, index) => {
         FD.append(index.toString(), JSON.stringify(el));
       });
 
-      try {
-        await post(`${server}/bulk_set_stream`, FD, options, customOptions);
-      } catch (err) {
-        const { error } = await err.json();
-        assert.deepStrictEqual(error.timestamp, "Message has been signed more than 600s ago"); // same goes for pubkeyY
-      }
+      const res = await fetch(`${server}/bulk_set_stream`, {
+        method: "POST",
+        body: FD,
+      });
+
+      expect(res.status).toBe(403);
+      const val = await res.json();
+      expect(val.error.timestamp).toBe("Message has been signed more than 600s ago"); // same goes for pubkeyY
     });
 
     it("#it should reject if one of the shares has an invalid signature", async function () {
+      // @ts-expect-error testing
       finalMetadataParams[0].set_data.timestamp = new BN(~~(Date.now() / 1000) - 10).toString(16);
       const FD = new FormData();
       finalMetadataParams.forEach((el, index) => {
         FD.append(index.toString(), JSON.stringify(el));
       });
 
-      try {
-        await post(`${server}/bulk_set_stream`, FD, options, customOptions);
-      } catch (err) {
-        const { error } = await err.json();
-        assert.deepStrictEqual(error.signature, "Invalid signature"); // same goes for pubkeyY
-      }
+      const res = await fetch(`${server}/bulk_set_stream`, {
+        method: "POST",
+        body: FD,
+      });
+
+      expect(res.status).toBe(403);
+      const val = await res.json();
+      expect(val.error.signature).toBe("Invalid signature"); // same goes for pubkeyY
     });
 
     it("#it should be able get/set stream data correctly", async function () {
@@ -272,37 +291,37 @@ describe("API-calls", function () {
     let privKey;
     let lockId;
 
-    before(function () {
+    beforeAll(function () {
       privKey = new BN(generatePrivate());
     });
 
     it("#can release empty lock", async function () {
       const { status: releaseStatus } = await storageLayer.releaseWriteLock({ id: randomID(), privKey });
-      assert.strictEqual(releaseStatus, 1);
+      expect(releaseStatus).toBe(1);
     });
 
     it("#it should acquire lock correctly", async function () {
       const { id, status } = await storageLayer.acquireWriteLock({ privKey });
-      assert.strictEqual(status, 1);
-      assert.isNotEmpty(id);
+      expect(status).toBe(1);
+      expect(id).toBeDefined();
       lockId = id;
     });
 
     it("#it should not re acquire lock correctly", async function () {
       const { status } = await storageLayer.acquireWriteLock({ privKey });
-      assert.strictEqual(status, 0);
+      expect(status).toBe(0);
     });
 
     it("#it should release lock correctly", async function () {
       const { status: releaseStatus } = await storageLayer.releaseWriteLock({ id: lockId, privKey });
-      assert.strictEqual(releaseStatus, 1);
+      expect(releaseStatus).toBe(1);
     });
 
     it("#it should not release another lock of priv key", async function () {
       const { status } = await storageLayer.acquireWriteLock({ privKey });
-      assert.strictEqual(status, 1);
+      expect(status).toBe(1);
       const { status: releaseStatus } = await storageLayer.releaseWriteLock({ id: randomID(), privKey });
-      assert.strictEqual(releaseStatus, 2);
+      expect(releaseStatus).toBe(2);
     });
   });
 });
