@@ -1,5 +1,5 @@
 # for build
-FROM node:20-alpine AS build
+FROM node:22-alpine AS build
 
 ENV NODE_OPTIONS --max-old-space-size=4096
 
@@ -19,13 +19,19 @@ COPY . .
 RUN npm run build 
 
 # for production
-FROM node:20-alpine
+FROM node:22-alpine
 
 ENV NODE_OPTIONS --max-old-space-size=4096
 
 WORKDIR /app
 
 COPY package*.json ./
+
+# adding these so that bigint bindings work natively
+RUN apk add --no-cache --virtual .gyp \
+        python3 \
+        make \
+        g++
 
 RUN npm ci --omit=dev --ignore-scripts
 

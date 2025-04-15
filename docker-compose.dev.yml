@@ -4,7 +4,7 @@ services:
   #   ports:
   #     - "5001:5001/tcp"
   redis:
-    image: redis:6
+    image: redis:7
     env_file:
       - ./.env.development
     ports:
@@ -41,4 +41,4 @@ services:
     ports:
       - "5051:5051/tcp"
     volumes:
-      - .:/app
+      - ./src:/app/src
