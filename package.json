@@ -24,6 +24,7 @@
   "license": "ISC",
   "dependencies": {
     "@babel/runtime": "^7.27.0",
+    "@noble/curves": "^2.0.1",
     "@sentry/node": "^9.12.0",
     "@sesamecare-oss/redlock": "^1.4.0",
     "@socket.io/redis-adapter": "^8.3.0",
@@ -51,6 +52,7 @@
     "socket.io": "^4.8.1"
   },
   "devDependencies": {
+    "@noble/curves": "^2.0.1",
     "@tkey/storage-layer-torus": "^16.0.0",
     "@toruslabs/config": "^3.1.0",
     "@toruslabs/eslint-config-node": "^4.1.3",

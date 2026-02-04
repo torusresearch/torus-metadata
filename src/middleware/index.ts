@@ -3,7 +3,7 @@ import { Joi } from "celebrate";
 import { NextFunction, Request, Response } from "express";
 import log from "loglevel";
 
-import { getError, isValidLockSignature, isValidSignature } from "../utils";
+import { getError, isValidLockSignature, isValidSignature, isValidSignatureV2 } from "../utils";
 import { getDBTableName, LockDataInput, SetDataInput } from "../utils/interfaces";
 
 export const validateDataTimeStamp = async (req: Request, res: Response, next: NextFunction) => {
@@ -70,6 +70,49 @@ export const validateLoopSignature = (key: string) => (req: Request, res: Respon
     } catch (error: unknown) {
       (error as { index: number }).index = index;
       log.error("signature verification failed", error);
+      res.status(500).json({ error: getError(error), success: false });
+      return;
+    }
+  }
+  next();
+  return;
+};
+
+// V2 signature validation middleware (for @noble/curves format: recovery + r + s)
+export const validateSignatureV2 = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const setDataInput: SetDataInput = req.body;
+    const isValid = isValidSignatureV2(setDataInput);
+
+    if (!isValid) {
+      log.error("Invalid signature (v2)", { setDataInput });
+      res.status(403).json({ error: { signature: "Invalid signature" }, success: false });
+      return;
+    }
+    next();
+    return;
+  } catch (error) {
+    log.error("signature verification failed (v2)", error);
+    res.status(500).json({ error: getError(error), success: false });
+    return;
+  }
+};
+
+export const validateLoopSignatureV2 = (key: string) => (req: Request, res: Response, next: NextFunction) => {
+  const paramsObject: { [key: string]: SetDataInput[] } = req.body;
+  const mainParamToTest = paramsObject[key];
+  for (const [index, param] of mainParamToTest.entries()) {
+    try {
+      const isValid = isValidSignatureV2(param);
+      if (!isValid) {
+        const errors = { index, signature: "Invalid signature" };
+        log.error("Invalid signature (v2)", { index, param });
+        res.status(403).json({ error: errors, success: false });
+        return;
+      }
+    } catch (error: unknown) {
+      (error as { index: number }).index = index;
+      log.error("signature verification failed (v2)", error);
       res.status(500).json({ error: getError(error), success: false });
       return;
     }
