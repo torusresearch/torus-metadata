@@ -16,26 +16,9 @@ import {
 } from "../middleware";
 import { constructKey, getError, REDIS_TIMEOUT } from "../utils";
 import { DataInsertType, DBTableName, SetDataInput } from "../utils/interfaces";
+import { RESERVED_NAMESPACES, validateSetData } from "./constants";
 
 const router = express.Router();
-
-const NAMESPACES = {
-  nonceV2: "noncev2",
-  pubNonceV2: "pub_noncev2",
-};
-
-const RESERVED_NAMESPACES = [NAMESPACES.nonceV2, NAMESPACES.pubNonceV2];
-
-const validateSetData = Joi.object({
-  namespace: Joi.string().max(128),
-  pub_key_X: Joi.string().max(64).hex().required(),
-  pub_key_Y: Joi.string().max(64).hex().required(),
-  set_data: Joi.object({
-    data: Joi.string().required(),
-    timestamp: Joi.string().hex().required(),
-  }).required(),
-  signature: Joi.string().max(88).required(),
-});
 
 // V2 routes accept signatures in @noble/curves format: recovery (1 byte) + r (32 bytes) + s (32 bytes)
 // This is different from v1 which expects: r (32 bytes) + s (32 bytes) + recovery (1 byte)

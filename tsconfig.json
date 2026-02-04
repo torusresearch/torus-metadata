@@ -6,7 +6,7 @@
     "outDir": "./dist",
     "declaration": true,
     "declarationDir": "./dist/types",
-    "module": "Node16",
+    "module": "NodeNext",
     "target": "ES2022",
     "lib": ["ES2022"]
   },
