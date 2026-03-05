@@ -75,7 +75,7 @@ router.post(
       const key = constructKey(pubKeyX, pubKeyY, namespace);
       let value: string;
       try {
-        value = await redis.get(key);
+        value = (await redis.get(key)) as string;
       } catch (error) {
         log.warn("redis get failed", error);
       }
@@ -367,7 +367,7 @@ router.post(
       // check if it already exists
       let oldValue: string;
       try {
-        oldValue = await redis.get(oldKey);
+        oldValue = (await redis.get(oldKey)) as string;
       } catch (error) {
         log.warn("redis get failed", error);
       }
@@ -394,7 +394,7 @@ router.post(
       const getNonce = async (strongConsistency = false): Promise<string | undefined> => {
         let nonceVal: string;
         try {
-          nonceVal = await redis.get(key);
+          nonceVal = (await redis.get(key)) as string;
         } catch (error) {
           log.warn("redis get failed", error);
         }
@@ -409,7 +409,7 @@ router.post(
       const getPubNonce = async (strongConsistency = false): Promise<string | undefined> => {
         let pubNonceVal: string;
         try {
-          pubNonceVal = await redis.get(keyForPubNonce);
+          pubNonceVal = (await redis.get(keyForPubNonce)) as string;
         } catch (error) {
           log.warn("redis get failed", error);
         }
@@ -459,7 +459,7 @@ router.post(
             gettingPubNonceTime = process.hrtime.bigint();
           } else {
             // create new nonce
-            nonce = generatePrivate().toString("hex");
+            nonce = generatePrivate().toString();
 
             const unformattedPubNonce = elliptic.keyFromPrivate(nonce).getPublic();
             pubNonce = {
