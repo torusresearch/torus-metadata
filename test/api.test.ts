@@ -1,16 +1,19 @@
 /* eslint-disable import/no-extraneous-dependencies */
 /* eslint-disable n/no-extraneous-import */
-/* eslint-disable n/no-unsupported-features/node-builtins */
 import { getPubKeyECC } from "@tkey/common-types";
 import { TorusStorageLayer } from "@tkey/storage-layer-torus";
 import { encrypt, generatePrivate } from "@toruslabs/eccrypto";
-import { BN } from "bn.js";
+import { bytesToBigInt } from "@toruslabs/metadata-helpers";
 import { stringify } from "querystring";
 import { assert, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 const port = 5051;
 const host = process.env.HOST || "localhost";
 const server = `http://${host}:${port}`;
+
+function encodeMessageBytes(message: Record<string, string>): Uint8Array {
+  return new TextEncoder().encode(stringify(message));
+}
 const randomID = () => `${Math.random().toString(36).substring(2, 9)}`;
 describe("API-calls", function () {
   describe("/default", function () {
@@ -32,7 +35,7 @@ describe("API-calls", function () {
     const storageLayer = new TorusStorageLayer({ hostUrl: server });
 
     beforeEach(function () {
-      PRIVATE_KEY = new BN(generatePrivate());
+      PRIVATE_KEY = bytesToBigInt(generatePrivate());
     });
 
     it("#it should reject if signature field is missing", async function () {
@@ -40,8 +43,8 @@ describe("API-calls", function () {
         test: Math.random().toString(36).substring(7),
       };
 
-      const bufferMetadata = Buffer.from(stringify(message));
-      const encryptedDetails = await encrypt(getPubKeyECC(PRIVATE_KEY), bufferMetadata);
+      const messageBytes = encodeMessageBytes(message);
+      const encryptedDetails = await encrypt(getPubKeyECC(PRIVATE_KEY), messageBytes);
       // @ts-expect-error testing
       const serializedEncryptedDetails = globalThis.btoa(stringify(encryptedDetails));
 
@@ -64,8 +67,8 @@ describe("API-calls", function () {
         test: Math.random().toString(36).substring(7),
       };
 
-      const bufferMetadata = Buffer.from(stringify(message));
-      const encryptedDetails = await encrypt(getPubKeyECC(PRIVATE_KEY), bufferMetadata);
+      const messageBytes = encodeMessageBytes(message);
+      const encryptedDetails = await encrypt(getPubKeyECC(PRIVATE_KEY), messageBytes);
       // @ts-expect-error testing
       const serializedEncryptedDetails = globalThis.btoa(stringify(encryptedDetails));
 
@@ -88,8 +91,8 @@ describe("API-calls", function () {
         test: Math.random().toString(36).substring(7),
       };
 
-      const bufferMetadata = Buffer.from(stringify(message));
-      const encryptedDetails = await encrypt(getPubKeyECC(PRIVATE_KEY), bufferMetadata);
+      const messageBytes = encodeMessageBytes(message);
+      const encryptedDetails = await encrypt(getPubKeyECC(PRIVATE_KEY), messageBytes);
       // @ts-expect-error testing
       const serializedEncryptedDetails = globalThis.btoa(stringify(encryptedDetails));
 
@@ -113,14 +116,14 @@ describe("API-calls", function () {
         test: Math.random().toString(36).substring(7),
       };
 
-      const bufferMetadata = Buffer.from(stringify(message));
-      const encryptedDetails = await encrypt(getPubKeyECC(PRIVATE_KEY), bufferMetadata);
+      const messageBytes = encodeMessageBytes(message);
+      const encryptedDetails = await encrypt(getPubKeyECC(PRIVATE_KEY), messageBytes);
       // @ts-expect-error testing
       const serializedEncryptedDetails = globalThis.btoa(stringify(encryptedDetails));
 
       const metadataParams = storageLayer.generateMetadataParams(serializedEncryptedDetails, undefined, PRIVATE_KEY);
       // @ts-expect-error testing
-      metadataParams.set_data.timestamp = new BN(~~(Date.now() / 1000) - 605).toString(16);
+      metadataParams.set_data.timestamp = (BigInt(Math.floor(Date.now() / 1000)) - 605n).toString(16);
       const res = await fetch(`${server}/set`, {
         method: "POST",
         headers: {
@@ -138,14 +141,14 @@ describe("API-calls", function () {
         test: Math.random().toString(36).substring(7),
       };
 
-      const bufferMetadata = Buffer.from(stringify(message));
-      const encryptedDetails = await encrypt(getPubKeyECC(PRIVATE_KEY), bufferMetadata);
+      const messageBytes = encodeMessageBytes(message);
+      const encryptedDetails = await encrypt(getPubKeyECC(PRIVATE_KEY), messageBytes);
       // @ts-expect-error testing
       const serializedEncryptedDetails = globalThis.btoa(stringify(encryptedDetails));
 
       const metadataParams = storageLayer.generateMetadataParams(serializedEncryptedDetails, undefined, PRIVATE_KEY);
       // @ts-expect-error testing
-      metadataParams.set_data.timestamp = new BN(~~(Date.now() / 1000) - 10).toString(16); // change timestamp, signature no longer valid
+      metadataParams.set_data.timestamp = (BigInt(Math.floor(Date.now() / 1000)) - 10n).toString(16); // change timestamp, signature no longer valid
       const res = await fetch(`${server}/set`, {
         method: "POST",
         headers: {
@@ -188,15 +191,15 @@ describe("API-calls", function () {
       privateKeys = [];
       for (let i = 0; i < 4; i += 1) {
         // @ts-expect-error testing
-        privateKeys.push(generatePrivate().toString("hex"));
+        privateKeys.push(bytesToBigInt(generatePrivate()));
       }
 
       finalMetadataParams = [];
       // @ts-expect-error testing
       finalMetadataParams = await Promise.all(
         messages.map(async (el, i) => {
-          const bufferMetadata = Buffer.from(stringify(el));
-          const encryptedDetails = await encrypt(getPubKeyECC(privateKeys[i]), bufferMetadata);
+          const messageBytes = encodeMessageBytes(el);
+          const encryptedDetails = await encrypt(getPubKeyECC(privateKeys[i]), messageBytes);
           // @ts-expect-error testing
           const serializedEncryptedDetails = globalThis.btoa(stringify(encryptedDetails));
           const metadataParams = storageLayer.generateMetadataParams(serializedEncryptedDetails, undefined, privateKeys[i]);
@@ -241,7 +244,7 @@ describe("API-calls", function () {
 
     it("#it should reject if one of the shares has an old timestamp", async function () {
       // @ts-expect-error testing
-      finalMetadataParams[0].set_data.timestamp = new BN(~~(Date.now() / 1000) - 605).toString(16);
+      finalMetadataParams[0].set_data.timestamp = (BigInt(Math.floor(Date.now() / 1000)) - 605n).toString(16);
       const FD = new FormData();
       finalMetadataParams.forEach((el, index) => {
         FD.append(index.toString(), JSON.stringify(el));
@@ -259,7 +262,7 @@ describe("API-calls", function () {
 
     it("#it should reject if one of the shares has an invalid signature", async function () {
       // @ts-expect-error testing
-      finalMetadataParams[0].set_data.timestamp = new BN(~~(Date.now() / 1000) - 10).toString(16);
+      finalMetadataParams[0].set_data.timestamp = (BigInt(Math.floor(Date.now() / 1000)) - 10n).toString(16);
       const FD = new FormData();
       finalMetadataParams.forEach((el, index) => {
         FD.append(index.toString(), JSON.stringify(el));
@@ -292,7 +295,7 @@ describe("API-calls", function () {
     let lockId;
 
     beforeAll(function () {
-      privKey = new BN(generatePrivate());
+      privKey = bytesToBigInt(generatePrivate());
     });
 
     it("#can release empty lock", async function () {
