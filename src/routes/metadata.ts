@@ -1,7 +1,7 @@
 /* eslint-disable security/detect-object-injection */
 import { generatePrivate } from "@toruslabs/eccrypto";
+import { bytesToHex, hexToBytes, secp256k1, utf8ToBytes } from "@toruslabs/metadata-helpers";
 import { celebrate, Joi, Segments } from "celebrate";
-import { ec as EC } from "elliptic";
 import express, { Request, Response } from "express";
 import log from "loglevel";
 import multer from "multer";
@@ -26,8 +26,6 @@ import { DataInsertType, DBTableName, SetDataInput } from "../utils/interfaces";
 const upload = multer({
   limits: { fieldSize: 30 * 1024 * 1024 },
 });
-
-const elliptic = new EC("secp256k1");
 
 const router = express.Router();
 
@@ -253,7 +251,7 @@ router.post(
         const sizeInCurrentTable = currentBatchSizePerTable[tableName];
         const latestBatchInCurrentTable = allBatchesInCurrentTable[allBatchesInCurrentTable.length - 1];
         // do checks
-        const currentDataLength = Buffer.byteLength(data);
+        const currentDataLength = utf8ToBytes(data).length;
         if (currentDataLength + sizeInCurrentTable <= MAX_BATCH_SIZE) {
           latestBatchInCurrentTable.push({ key, value: data });
           currentBatchSizePerTable[tableName] = currentDataLength + sizeInCurrentTable;
@@ -459,12 +457,12 @@ router.post(
             gettingPubNonceTime = process.hrtime.bigint();
           } else {
             // create new nonce
-            nonce = generatePrivate().toString();
+            nonce = bytesToHex(generatePrivate());
 
-            const unformattedPubNonce = elliptic.keyFromPrivate(nonce).getPublic();
+            const unformattedPubNonce = secp256k1.getPublicKey(hexToBytes(nonce));
             pubNonce = {
-              x: unformattedPubNonce.getX().toString("hex"),
-              y: unformattedPubNonce.getY().toString("hex"),
+              x: bytesToHex(unformattedPubNonce.slice(1, 33)),
+              y: bytesToHex(unformattedPubNonce.slice(33, 65)),
             };
 
             // We just created new nonce and pub nonce above, write to db

@@ -31,7 +31,7 @@ describe("API-calls", function () {
   });
 
   describe("/set", function () {
-    let PRIVATE_KEY;
+    let PRIVATE_KEY: bigint;
     const storageLayer = new TorusStorageLayer({ hostUrl: server });
 
     beforeEach(function () {
