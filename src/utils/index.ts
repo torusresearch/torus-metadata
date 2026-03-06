@@ -1,4 +1,4 @@
-import { base64ToBytes, concatBytes, hexToBytes, keccak256Bytes, secp256k1, utf8ToBytes } from "@toruslabs/metadata-helpers";
+import { base64ToBytes, coordsToPublicKey, hexToBytes, keccak256Bytes, secp256k1, utf8ToBytes } from "@toruslabs/metadata-helpers";
 import stringify from "json-stable-stringify";
 
 import { LockDataInput, SetDataInput } from "./interfaces";
@@ -30,8 +30,8 @@ export const REDIS_NAME_SPACE = "EMAIL_AUTH_DATA";
 
 export const isValidSignature = (data: SetDataInput): boolean => {
   const { pub_key_X: pubKeyX, pub_key_Y: pubKeyY, signature, set_data: setData } = data;
-  const pubKey = secp256k1.getPublicKey(concatBytes([hexToBytes(pubKeyX), hexToBytes(pubKeyY)]));
-  const sigBytes = base64ToBytes(signature);
+  const pubKey = coordsToPublicKey(hexToBytes(pubKeyX), hexToBytes(pubKeyY));
+  const sigBytes = base64ToBytes(signature).subarray(0, 64);
   // this is to ensure that the signature is valid for both JSON and stringified data
   // and for backward compatibility.
   const casesToCheck = [stringify(setData), JSON.stringify(setData), JSON.stringify({ timestamp: setData.timestamp, data: setData.data })];
