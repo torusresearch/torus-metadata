@@ -1,10 +1,7 @@
-import { ec as EC } from "elliptic";
-import { keccak256 } from "js-sha3";
+import { base64ToBytes, coordsToPublicKey, hexToBytes, keccak256Bytes, secp256k1, utf8ToBytes } from "@toruslabs/metadata-helpers";
 import stringify from "json-stable-stringify";
 
 import { LockDataInput, SetDataInput } from "./interfaces";
-
-const elliptic = new EC("secp256k1");
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function isErrorObj(err: any): boolean {
@@ -33,17 +30,14 @@ export const REDIS_NAME_SPACE = "EMAIL_AUTH_DATA";
 
 export const isValidSignature = (data: SetDataInput): boolean => {
   const { pub_key_X: pubKeyX, pub_key_Y: pubKeyY, signature, set_data: setData } = data;
-  const pubKey = elliptic.keyFromPublic({ x: pubKeyX, y: pubKeyY }, "hex");
-  const decodedSignature = Buffer.from(signature, "base64").toString("hex");
-  const ecSignature = {
-    r: Buffer.from(decodedSignature.substring(0, 64), "hex"),
-    s: Buffer.from(decodedSignature.substring(64, 128), "hex"),
-  };
+  const pubKey = coordsToPublicKey(hexToBytes(pubKeyX.padStart(64, "0")), hexToBytes(pubKeyY.padStart(64, "0")));
+  const sigBytes = base64ToBytes(signature).subarray(0, 64);
   // this is to ensure that the signature is valid for both JSON and stringified data
   // and for backward compatibility.
   const casesToCheck = [stringify(setData), JSON.stringify(setData), JSON.stringify({ timestamp: setData.timestamp, data: setData.data })];
   for (const dataCase of casesToCheck) {
-    const result = elliptic.verify(keccak256(dataCase), ecSignature, pubKey);
+    const msgHash = keccak256Bytes(utf8ToBytes(dataCase));
+    const result = secp256k1.verify(sigBytes, msgHash, pubKey, { prehash: false, format: "compact", lowS: false });
     if (result) return result;
   }
   return false;
@@ -51,11 +45,14 @@ export const isValidSignature = (data: SetDataInput): boolean => {
 
 export const isValidLockSignature = (lockData: LockDataInput): boolean => {
   const { key, signature, data } = lockData;
+  const pubKey = hexToBytes(key);
+  const sigBytes = hexToBytes(signature);
   // this is to ensure that the signature is valid for both JSON and stringified data
   // and for backward compatibility.
   const casesToCheck = [stringify(data), JSON.stringify(data), JSON.stringify({ timestamp: data.timestamp, data: data.data })];
   for (const dataCase of casesToCheck) {
-    const result = elliptic.verify(keccak256(Buffer.from(dataCase, "utf8")), signature, Buffer.from(key, "hex"));
+    const msgHash = keccak256Bytes(utf8ToBytes(dataCase));
+    const result = secp256k1.verify(sigBytes, msgHash, pubKey, { prehash: false, format: "der", lowS: false });
     if (result) return result;
   }
   return false;

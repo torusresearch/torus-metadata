@@ -1,7 +1,7 @@
 /* eslint-disable security/detect-object-injection */
 import { generatePrivate } from "@toruslabs/eccrypto";
+import { bytesToHex, hexToBytes, secp256k1, utf8ToBytes } from "@toruslabs/metadata-helpers";
 import { celebrate, Joi, Segments } from "celebrate";
-import { ec as EC } from "elliptic";
 import express, { Request, Response } from "express";
 import log from "loglevel";
 import multer from "multer";
@@ -26,8 +26,6 @@ import { DataInsertType, DBTableName, SetDataInput } from "../utils/interfaces";
 const upload = multer({
   limits: { fieldSize: 30 * 1024 * 1024 },
 });
-
-const elliptic = new EC("secp256k1");
 
 const router = express.Router();
 
@@ -75,7 +73,7 @@ router.post(
       const key = constructKey(pubKeyX, pubKeyY, namespace);
       let value: string;
       try {
-        value = await redis.get(key);
+        value = (await redis.get(key)) as string;
       } catch (error) {
         log.warn("redis get failed", error);
       }
@@ -253,7 +251,7 @@ router.post(
         const sizeInCurrentTable = currentBatchSizePerTable[tableName];
         const latestBatchInCurrentTable = allBatchesInCurrentTable[allBatchesInCurrentTable.length - 1];
         // do checks
-        const currentDataLength = Buffer.byteLength(data);
+        const currentDataLength = utf8ToBytes(data).length;
         if (currentDataLength + sizeInCurrentTable <= MAX_BATCH_SIZE) {
           latestBatchInCurrentTable.push({ key, value: data });
           currentBatchSizePerTable[tableName] = currentDataLength + sizeInCurrentTable;
@@ -339,8 +337,8 @@ router.post(
   "/get_or_set_nonce",
   celebrate({
     [Segments.BODY]: Joi.object({
-      pub_key_X: Joi.string().max(64).required(),
-      pub_key_Y: Joi.string().max(64).required(),
+      pub_key_X: Joi.string().max(64).hex().required(),
+      pub_key_Y: Joi.string().max(64).hex().required(),
       namespace: Joi.string().max(128),
       set_data: Joi.object({
         data: Joi.string(),
@@ -367,7 +365,7 @@ router.post(
       // check if it already exists
       let oldValue: string;
       try {
-        oldValue = await redis.get(oldKey);
+        oldValue = (await redis.get(oldKey)) as string;
       } catch (error) {
         log.warn("redis get failed", error);
       }
@@ -394,7 +392,7 @@ router.post(
       const getNonce = async (strongConsistency = false): Promise<string | undefined> => {
         let nonceVal: string;
         try {
-          nonceVal = await redis.get(key);
+          nonceVal = (await redis.get(key)) as string;
         } catch (error) {
           log.warn("redis get failed", error);
         }
@@ -409,7 +407,7 @@ router.post(
       const getPubNonce = async (strongConsistency = false): Promise<string | undefined> => {
         let pubNonceVal: string;
         try {
-          pubNonceVal = await redis.get(keyForPubNonce);
+          pubNonceVal = (await redis.get(keyForPubNonce)) as string;
         } catch (error) {
           log.warn("redis get failed", error);
         }
@@ -459,12 +457,15 @@ router.post(
             gettingPubNonceTime = process.hrtime.bigint();
           } else {
             // create new nonce
-            nonce = generatePrivate().toString("hex");
+            nonce = bytesToHex(generatePrivate());
 
-            const unformattedPubNonce = elliptic.keyFromPrivate(nonce).getPublic();
+            const unformattedPubNonce = secp256k1.getPublicKey(hexToBytes(nonce), false);
+            if (unformattedPubNonce.length !== 65) {
+              throw new Error(`expected 65-byte uncompressed public key, got ${unformattedPubNonce.length} bytes`);
+            }
             pubNonce = {
-              x: unformattedPubNonce.getX().toString("hex"),
-              y: unformattedPubNonce.getY().toString("hex"),
+              x: bytesToHex(unformattedPubNonce.slice(1, 33)),
+              y: bytesToHex(unformattedPubNonce.slice(33, 65)),
             };
 
             // We just created new nonce and pub nonce above, write to db

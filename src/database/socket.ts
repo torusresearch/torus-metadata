@@ -49,7 +49,7 @@ export function setupIoListeners(io: Server): void {
         // check if data for pubKey already in db,
         // if data exists then emit data and so that client
         // will close the connection.
-        const data = await redis.get(key);
+        const data = (await redis.get(key)) as string;
         if (data) {
           const parsedData = JSON.parse(data || "{}");
           socket.emit("success", parsedData.encAuthData || {});
