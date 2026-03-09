@@ -44,7 +44,7 @@ const validateSetData = Joi.object({
     data: Joi.string().required(),
     timestamp: Joi.string().hex().required(),
   }).required(),
-  signature: Joi.string().max(88).base64({ paddingRequired: false }).required(),
+  signature: Joi.string().max(88).required(),
 });
 
 const calculateTimeDifference = (start: bigint, end: bigint) => ((end - start) / BigInt(1e6)).toString(); // in milliseconds
@@ -344,7 +344,7 @@ router.post(
         data: Joi.string(),
         timestamp: Joi.string().hex(),
       }),
-      signature: Joi.string().max(88).base64({ paddingRequired: false }),
+      signature: Joi.string().max(88),
     }),
   }),
   validateGetOrSetNonceSetInput,
