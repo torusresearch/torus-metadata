@@ -30,7 +30,7 @@ export const REDIS_NAME_SPACE = "EMAIL_AUTH_DATA";
 
 export const isValidSignature = (data: SetDataInput): boolean => {
   const { pub_key_X: pubKeyX, pub_key_Y: pubKeyY, signature, set_data: setData } = data;
-  const pubKey = coordsToPublicKey(hexToBytes(pubKeyX), hexToBytes(pubKeyY));
+  const pubKey = coordsToPublicKey(hexToBytes(pubKeyX.padStart(64, "0")), hexToBytes(pubKeyY.padStart(64, "0")));
   const sigBytes = base64ToBytes(signature).subarray(0, 64);
   // this is to ensure that the signature is valid for both JSON and stringified data
   // and for backward compatibility.

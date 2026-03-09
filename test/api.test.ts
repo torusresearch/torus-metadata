@@ -448,6 +448,45 @@ describe("API-calls", function () {
       expect(releaseData.status).toBe(1);
     });
 
+    it("#should set/get metadata when pubkey coordinate has leading zero bytes (padding)", async function () {
+      // Private key 0x7a produces pubKeyY with 62 hex chars (top byte 0x00 fully stripped).
+      // Old elliptic clients using getX/getY().toString("hex") would send unpadded coords.
+      // With even-length < 64, hexToBytes produces 31 bytes instead of 32, causing
+      // coordsToPublicKey to misalign the public key and fail signature verification.
+      const keyPair = ec.keyFromPrivate("000000000000000000000000000000000000000000000000000000000000007a");
+      const pub = keyPair.getPublic();
+      const pubKeyX = pub.getX().toString("hex");
+      const pubKeyY = pub.getY().toString("hex"); // 62 hex chars — top byte 0x00 stripped
+      expect(pubKeyY.length).toBe(62);
+
+      const timestamp = Math.floor(Date.now() / 1000).toString(16);
+      const setData = { data: "padding-test", timestamp };
+
+      const hash = keccak256(jsonStableStringify(setData) as string);
+      const sig = ec.sign(hash, keyPair, "hex", { canonical: false });
+
+      const r = sig.r.toArrayLike(Buffer, "be", 32);
+      const s = sig.s.toArrayLike(Buffer, "be", 32);
+      const ethSig = Buffer.concat([r, s, Buffer.from([sig.recoveryParam || 0])]);
+      const signatureBase64 = ethSig.toString("base64");
+
+      const setRes = await fetch(`${server}/set`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pub_key_X: pubKeyX, pub_key_Y: pubKeyY, set_data: setData, signature: signatureBase64 }),
+      });
+      expect(setRes.status).toBe(200);
+
+      const getRes = await fetch(`${server}/get`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pub_key_X: pubKeyX, pub_key_Y: pubKeyY }),
+      });
+      expect(getRes.status).toBe(200);
+      const getData = (await getRes.json()) as { message: string };
+      expect(getData.message).toBe("padding-test");
+    });
+
     it("#should get_or_set_nonce with old elliptic-signed payload", async function () {
       const keyPair = ec.genKeyPair();
       const pub = keyPair.getPublic();
