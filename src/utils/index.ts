@@ -37,7 +37,7 @@ export const isValidSignature = (data: SetDataInput): boolean => {
   const casesToCheck = [stringify(setData), JSON.stringify(setData), JSON.stringify({ timestamp: setData.timestamp, data: setData.data })];
   for (const dataCase of casesToCheck) {
     const msgHash = keccak256Bytes(utf8ToBytes(dataCase));
-    const result = secp256k1.verify(sigBytes, msgHash, pubKey, { prehash: false, format: "compact" });
+    const result = secp256k1.verify(sigBytes, msgHash, pubKey, { prehash: false, format: "compact", lowS: false });
     if (result) return result;
   }
   return false;
@@ -52,7 +52,7 @@ export const isValidLockSignature = (lockData: LockDataInput): boolean => {
   const casesToCheck = [stringify(data), JSON.stringify(data), JSON.stringify({ timestamp: data.timestamp, data: data.data })];
   for (const dataCase of casesToCheck) {
     const msgHash = keccak256Bytes(utf8ToBytes(dataCase));
-    const result = secp256k1.verify(sigBytes, msgHash, pubKey, { prehash: false, format: "der" });
+    const result = secp256k1.verify(sigBytes, msgHash, pubKey, { prehash: false, format: "der", lowS: false });
     if (result) return result;
   }
   return false;

@@ -4,6 +4,9 @@ import { getPubKeyECC } from "@tkey/common-types";
 import { TorusStorageLayer } from "@tkey/storage-layer-torus";
 import { encrypt, generatePrivate } from "@toruslabs/eccrypto";
 import { bytesToBigInt } from "@toruslabs/metadata-helpers";
+import { ec as EC } from "elliptic";
+import { keccak256 } from "js-sha3";
+import jsonStableStringify from "json-stable-stringify";
 import { stringify } from "querystring";
 import { assert, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
@@ -325,6 +328,160 @@ describe("API-calls", function () {
       expect(status).toBe(1);
       const { status: releaseStatus } = await storageLayer.releaseWriteLock({ id: randomID(), privKey });
       expect(releaseStatus).toBe(2);
+    });
+  });
+
+  describe("backward compat: old elliptic-signed payloads", function () {
+    const ec = new EC("secp256k1");
+
+    function createOldSetPayload(keyPair: EC.KeyPair, data: string) {
+      const pub = keyPair.getPublic();
+      const pubKeyX = pub.getX().toString("hex", 32);
+      const pubKeyY = pub.getY().toString("hex", 32);
+
+      const timestamp = Math.floor(Date.now() / 1000).toString(16);
+      const setData = { data, timestamp };
+
+      const hash = keccak256(jsonStableStringify(setData) as string);
+      const sig = ec.sign(hash, keyPair, "hex", { canonical: false });
+
+      const r = sig.r.toArrayLike(Buffer, "be", 32);
+      const s = sig.s.toArrayLike(Buffer, "be", 32);
+      const ethSig = Buffer.concat([r, s, Buffer.from([sig.recoveryParam || 0])]);
+
+      const signatureBase64 = ethSig.toString("base64");
+
+      return { pub_key_X: pubKeyX, pub_key_Y: pubKeyY, set_data: setData, signature: signatureBase64 };
+    }
+
+    function createOldLockPayload(keyPair: EC.KeyPair) {
+      const pubKeyHex = keyPair.getPublic(false, "hex");
+
+      const timestamp = Math.floor(Date.now() / 1000);
+      const data = { timestamp };
+
+      const hash = keccak256(jsonStableStringify(data) as string);
+      const sig = ec.sign(hash, keyPair, "hex", { canonical: false });
+      const signatureHex = sig.toDER("hex");
+
+      return { key: pubKeyHex, data, signature: signatureHex };
+    }
+
+    it("#should set/get metadata with old elliptic-signed compact signature", async function () {
+      const keyPair = ec.genKeyPair();
+      const payload = createOldSetPayload(keyPair, "old-client-data");
+
+      const setRes = await fetch(`${server}/set`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      expect(setRes.status).toBe(200);
+
+      const getRes = await fetch(`${server}/get`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pub_key_X: payload.pub_key_X, pub_key_Y: payload.pub_key_Y }),
+      });
+      expect(getRes.status).toBe(200);
+      const getData = (await getRes.json()) as { message: string };
+      expect(getData.message).toBe("old-client-data");
+    });
+
+    it("#should bulk_set_stream with old elliptic-signed compact signatures", async function () {
+      const keyPair1 = ec.genKeyPair();
+      const keyPair2 = ec.genKeyPair();
+      const payload1 = createOldSetPayload(keyPair1, "bulk-old-1");
+      const payload2 = createOldSetPayload(keyPair2, "bulk-old-2");
+
+      const FD = new FormData();
+      FD.append("0", JSON.stringify(payload1));
+      FD.append("1", JSON.stringify(payload2));
+
+      const setRes = await fetch(`${server}/bulk_set_stream`, {
+        method: "POST",
+        body: FD,
+      });
+      expect(setRes.status).toBe(200);
+
+      const getRes1 = await fetch(`${server}/get`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pub_key_X: payload1.pub_key_X, pub_key_Y: payload1.pub_key_Y }),
+      });
+      expect(getRes1.status).toBe(200);
+      const data1 = (await getRes1.json()) as { message: string };
+      expect(data1.message).toBe("bulk-old-1");
+
+      const getRes2 = await fetch(`${server}/get`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pub_key_X: payload2.pub_key_X, pub_key_Y: payload2.pub_key_Y }),
+      });
+      expect(getRes2.status).toBe(200);
+      const data2 = (await getRes2.json()) as { message: string };
+      expect(data2.message).toBe("bulk-old-2");
+    });
+
+    it("#should acquire/release lock with old elliptic DER-signed payload", async function () {
+      const keyPair = ec.genKeyPair();
+
+      const acquirePayload = createOldLockPayload(keyPair);
+      const acquireRes = await fetch(`${server}/acquireLock`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(acquirePayload),
+      });
+      expect(acquireRes.status).toBe(200);
+      const acquireData = (await acquireRes.json()) as { status: number; id: string };
+      expect(acquireData.status).toBe(1);
+      expect(acquireData.id).toBeDefined();
+
+      const releasePayload = createOldLockPayload(keyPair);
+      const releaseRes = await fetch(`${server}/releaseLock`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...releasePayload, id: acquireData.id }),
+      });
+      expect(releaseRes.status).toBe(200);
+      const releaseData = (await releaseRes.json()) as { status: number };
+      expect(releaseData.status).toBe(1);
+    });
+
+    it("#should get_or_set_nonce with old elliptic-signed payload", async function () {
+      const keyPair = ec.genKeyPair();
+      const pub = keyPair.getPublic();
+      const pubKeyX = pub.getX().toString("hex", 32);
+      const pubKeyY = pub.getY().toString("hex", 32);
+
+      const timestamp = Math.floor(Date.now() / 1000).toString(16);
+      const setData = { data: "getOrSetNonce", timestamp };
+
+      const hash = keccak256(jsonStableStringify(setData) as string);
+      const sig = ec.sign(hash, keyPair, "hex", { canonical: false });
+
+      const r = sig.r.toArrayLike(Buffer, "be", 32);
+      const s = sig.s.toArrayLike(Buffer, "be", 32);
+      const ethSig = Buffer.concat([r, s, Buffer.from([sig.recoveryParam || 0])]);
+
+      const signatureBase64 = ethSig.toString("base64");
+
+      const res = await fetch(`${server}/get_or_set_nonce`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pub_key_X: pubKeyX,
+          pub_key_Y: pubKeyY,
+          set_data: setData,
+          signature: signatureBase64,
+        }),
+      });
+      expect(res.status).toBe(200);
+      const data = (await res.json()) as { typeOfUser: string; pubNonce: { x: string; y: string } };
+      expect(data.typeOfUser).toBe("v2");
+      expect(data.pubNonce).toBeDefined();
+      expect(data.pubNonce.x).toBeDefined();
+      expect(data.pubNonce.y).toBeDefined();
     });
   });
 });

@@ -44,7 +44,7 @@ const validateSetData = Joi.object({
     data: Joi.string().required(),
     timestamp: Joi.string().hex().required(),
   }).required(),
-  signature: Joi.string().max(88).required(),
+  signature: Joi.string().max(88).base64({ paddingRequired: false }).required(),
 });
 
 const calculateTimeDifference = (start: bigint, end: bigint) => ((end - start) / BigInt(1e6)).toString(); // in milliseconds
@@ -337,14 +337,14 @@ router.post(
   "/get_or_set_nonce",
   celebrate({
     [Segments.BODY]: Joi.object({
-      pub_key_X: Joi.string().max(64).required(),
-      pub_key_Y: Joi.string().max(64).required(),
+      pub_key_X: Joi.string().max(64).hex().required(),
+      pub_key_Y: Joi.string().max(64).hex().required(),
       namespace: Joi.string().max(128),
       set_data: Joi.object({
         data: Joi.string(),
         timestamp: Joi.string().hex(),
       }),
-      signature: Joi.string().max(88),
+      signature: Joi.string().max(88).base64({ paddingRequired: false }),
     }),
   }),
   validateGetOrSetNonceSetInput,
@@ -459,7 +459,10 @@ router.post(
             // create new nonce
             nonce = bytesToHex(generatePrivate());
 
-            const unformattedPubNonce = secp256k1.getPublicKey(hexToBytes(nonce));
+            const unformattedPubNonce = secp256k1.getPublicKey(hexToBytes(nonce), false);
+            if (unformattedPubNonce.length !== 65) {
+              throw new Error(`expected 65-byte uncompressed public key, got ${unformattedPubNonce.length} bytes`);
+            }
             pubNonce = {
               x: bytesToHex(unformattedPubNonce.slice(1, 33)),
               y: bytesToHex(unformattedPubNonce.slice(33, 65)),
