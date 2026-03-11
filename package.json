@@ -9,7 +9,7 @@
     "serve": "tsx watch --env-file=.env.development src/index.ts",
     "build": "torus-scripts build",
     "start": "tsx src/index.ts",
-    "prod": "node dist/index.js",
+    "prod": "node dist/lib.esm/index.js",
     "migrate": "npm run migrate:down && npm run migrate:latest",
     "migrate:latest": "NODE_OPTIONS='--import tsx' npx knex migrate:latest --knexfile ./src/database/knexfile.ts",
     "migrate:down": "NODE_OPTIONS='--import tsx' npx knex migrate:down --knexfile ./src/database/knexfile.ts",
