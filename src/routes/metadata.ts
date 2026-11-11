@@ -18,6 +18,7 @@ import {
   validateMetadataLoopInput,
   validateNamespace,
   validateNamespaceLoop,
+  validatePublicReadNamespace,
   validateSignature,
 } from "../middleware";
 import { constructKey, getError, MAX_BATCH_SIZE, REDIS_TIMEOUT } from "../utils";
@@ -33,8 +34,6 @@ const NAMESPACES = {
   nonceV2: "noncev2",
   pubNonceV2: "pub_noncev2",
 };
-
-const RESERVED_NAMESPACES = [NAMESPACES.nonceV2, NAMESPACES.pubNonceV2];
 
 const validateSetData = Joi.object({
   namespace: Joi.string().max(128),
@@ -55,13 +54,13 @@ router.post(
     {
       [Segments.BODY]: Joi.object({
         namespace: Joi.string().max(128),
-        pub_key_X: Joi.string().max(64).required(),
-        pub_key_Y: Joi.string().max(64).required(),
+        pub_key_X: Joi.string().max(64).hex().required(),
+        pub_key_Y: Joi.string().max(64).hex().required(),
       }),
     },
     { allowUnknown: true }
   ),
-  validateNamespace,
+  validatePublicReadNamespace,
   async (req: Request, res: Response) => {
     try {
       const {
@@ -97,7 +96,7 @@ router.post(
   celebrate({
     [Segments.BODY]: validateSetData,
   }),
-  validateNamespace,
+  validatePublicReadNamespace,
   validateDataTimeStamp,
   validateSignature,
   async (req: Request, res: Response) => {
@@ -109,11 +108,6 @@ router.post(
         set_data: { data },
         tableName = "",
       }: SetDataInput = req.body;
-
-      if (RESERVED_NAMESPACES.includes(namespace)) {
-        res.status(400).json({ error: `${namespace} namespace is a reserved namespace`, success: false });
-        return;
-      }
 
       const key = constructKey(pubKeyX, pubKeyY, namespace);
       await knexWrite(tableName).insert({
@@ -339,7 +333,6 @@ router.post(
     [Segments.BODY]: Joi.object({
       pub_key_X: Joi.string().max(64).hex().required(),
       pub_key_Y: Joi.string().max(64).hex().required(),
-      namespace: Joi.string().max(128),
       set_data: Joi.object({
         data: Joi.string(),
         timestamp: Joi.string().hex(),
@@ -356,11 +349,13 @@ router.post(
         pub_key_X: pubKeyX,
         pub_key_Y: pubKeyY,
         set_data: { data },
-        namespace: oldNamespace,
         tableName,
       }: SetDataInput = req.body;
 
-      const oldKey = constructKey(pubKeyX, pubKeyY, oldNamespace);
+      // A v1 (legacy) nonce lives under the empty namespace in the "data" table, so probe with
+      // the no-namespace key. The route rejects any caller-supplied namespace, so tableName is
+      // always "data" here and this lookup can never resolve to a v2 nonce key.
+      const oldKey = constructKey(pubKeyX, pubKeyY);
 
       // check if it already exists
       let oldValue: string;

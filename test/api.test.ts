@@ -523,4 +523,90 @@ describe("API-calls", function () {
       expect(data.pubNonce.y).toBeDefined();
     });
   });
+
+  describe("namespace isolation", function () {
+    const ec = new EC("secp256k1");
+
+    function createSetPayload(keyPair: EC.KeyPair, data: string) {
+      const pub = keyPair.getPublic();
+      const pubKeyX = pub.getX().toString("hex", 32);
+      const pubKeyY = pub.getY().toString("hex", 32);
+
+      const timestamp = Math.floor(Date.now() / 1000).toString(16);
+      const setData = { data, timestamp };
+
+      const hash = keccak256(jsonStableStringify(setData) as string);
+      const sig = ec.sign(hash, keyPair, "hex", { canonical: false });
+
+      const r = sig.r.toArrayLike(Buffer, "be", 32);
+      const s = sig.s.toArrayLike(Buffer, "be", 32);
+      const ethSig = Buffer.concat([r, s, Buffer.from([sig.recoveryParam || 0])]);
+
+      return { pub_key_X: pubKeyX, pub_key_Y: pubKeyY, set_data: setData, signature: ethSig.toString("base64") };
+    }
+
+    it("#/get should reject a pub_key_Y that smuggles a noncev2 key via \\x1c", async function () {
+      const keyPair = ec.genKeyPair();
+      const pubKeyX = keyPair.getPublic().getX().toString("hex", 32);
+      const pubKeyY = keyPair.getPublic().getY().toString("hex", 32);
+
+      const res = await fetch(`${server}/get`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // constructKey joins with \x1c, so "<Y>\x1cnoncev2" would build the noncev2 key.
+        // .hex() on pub_key_Y must reject the non-hex control byte before any lookup.
+        body: JSON.stringify({ pub_key_X: pubKeyX, pub_key_Y: `${pubKeyY}\u001cnoncev2` }),
+      });
+      expect(res.status).toBe(400);
+    });
+
+    it("#/get_or_set_nonce should reject a caller-supplied namespace", async function () {
+      const keyPair = ec.genKeyPair();
+      const pubKeyX = keyPair.getPublic().getX().toString("hex", 32);
+      const pubKeyY = keyPair.getPublic().getY().toString("hex", 32);
+
+      const res = await fetch(`${server}/get_or_set_nonce`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pub_key_X: pubKeyX, pub_key_Y: pubKeyY, namespace: "tkey" }),
+      });
+      // namespace is no longer an allowed key, so celebrate rejects it before any lookup.
+      expect(res.status).toBe(400);
+    });
+
+    it("#/set should reject an unknown namespace", async function () {
+      const payload = createSetPayload(ec.genKeyPair(), "ns-test");
+
+      const res = await fetch(`${server}/set`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...payload, namespace: "foo" }),
+      });
+      expect(res.status).toBe(403);
+    });
+
+    it("#/bulk_set should reject a share with an unknown namespace", async function () {
+      const payload = createSetPayload(ec.genKeyPair(), "bulk-ns-test");
+
+      const res = await fetch(`${server}/bulk_set`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shares: [{ ...payload, namespace: "foo" }] }),
+      });
+      expect(res.status).toBe(403);
+    });
+
+    it("#/bulk_set should allow a noncev2 share (OneKey -> tKey delete)", async function () {
+      // The tKey SDK deletes the v2 nonce by bulk-writing noncev2 = "<deleted>" during the
+      // OneKey -> tKey upgrade, so the write-namespace guard must let noncev2 through.
+      const payload = createSetPayload(ec.genKeyPair(), "<deleted>");
+
+      const res = await fetch(`${server}/bulk_set`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shares: [{ ...payload, namespace: "noncev2" }] }),
+      });
+      expect(res.status).toBe(200);
+    });
+  });
 });

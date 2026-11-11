@@ -4,7 +4,7 @@ import { NextFunction, Request, Response } from "express";
 import log from "loglevel";
 
 import { getError, isValidLockSignature, isValidSignature } from "../utils";
-import { getDBTableName, LockDataInput, SetDataInput } from "../utils/interfaces";
+import { getDBTableName, isPublicReadNamespace, isWritableNamespace, LockDataInput, SetDataInput } from "../utils/interfaces";
 
 export const validateDataTimeStamp = async (req: Request, res: Response, next: NextFunction) => {
   const { set_data: setData }: SetDataInput = req.body;
@@ -91,11 +91,42 @@ export const validateNamespace = (req: Request, res: Response, next: NextFunctio
   }
 };
 
-export const validateNamespaceLoop = (key: string) => (req: Request, _: Response, next: NextFunction) => {
+// Guards both the unauthenticated /get route and the /set write route: only namespaces on
+// the canonical public-read allowlist may be read or written. Reserved nonce namespaces
+// (noncev2, pub_noncev2), every other private/recovery namespace, and unknown namespaces are
+// rejected BEFORE a table is resolved or any cache/DB lookup/write happens. getDBTableName is
+// not an authorization check.
+export const validatePublicReadNamespace = (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { namespace } = req.body;
+    if (!isPublicReadNamespace(namespace)) {
+      log.warn("[validatePublicReadNamespace] namespace is not publicly readable", { namespace });
+      res.status(403).json({ error: { namespace: "namespace is not readable through this endpoint" }, success: false });
+      return;
+    }
+    req.body.tableName = getDBTableName(namespace);
+    next();
+    return;
+  } catch (error) {
+    log.error(error);
+    res.status(500).json({ error: getError(error), success: false });
+    return;
+  }
+};
+
+export const validateNamespaceLoop = (key: string) => (req: Request, res: Response, next: NextFunction) => {
   const paramsObject: { [key: string]: SetDataInput[] } = req.body;
   const mainParamToTest = paramsObject[key];
   for (const param of mainParamToTest) {
     const { namespace } = param;
+    // Reject unknown namespaces and pub_noncev2 before any DB write, so bulk writes cannot land
+    // data that generic /get would then refuse to serve. noncev2 stays allowed here: the tKey SDK
+    // writes noncev2 = "<deleted>" through this route during the OneKey -> tKey upgrade.
+    if (!isWritableNamespace(namespace)) {
+      log.warn("[validateNamespaceLoop] namespace is not writable through this endpoint", { namespace });
+      res.status(403).json({ error: { namespace: "namespace is not writable through this endpoint" }, success: false });
+      return;
+    }
     param.tableName = getDBTableName(namespace);
   }
   next();

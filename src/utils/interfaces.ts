@@ -24,6 +24,35 @@ const DBTableMap: Record<string, string> = {
 
 export type DBTableName = keyof typeof DBTableMap;
 
+export const PUB_NONCEV2 = "pub_noncev2";
+
+// Private/recovery namespaces must never be served by the unauthenticated /get route.
+// Private nonce material is only retrievable through the signature-gated /get_or_set_nonce flow.
+const PRIVATE_READ_NAMESPACES = new Set<string>([NONCEV2, PUB_NONCEV2]);
+
+// Canonical allowlist of namespaces that generic /get may serve without a signature.
+// Derived from the known namespace table minus any private/recovery namespaces, so that
+// reserved nonce namespaces and unknown namespaces are rejected by default.
+// Clients (metadata-helpers webAuthnShareResolver) send the "webauthn_" spellings, which are not
+// DBTableMap keys and resolve to the fallback table, so they are allowed explicitly.
+const CLIENT_WEBAUTHN_SHARE_NAMESPACES = ["webauthn_torus_share", "webauthn_device_share"];
+
+export const PUBLIC_READ_NAMESPACES = new Set<string>([
+  ...Object.keys(DBTableMap).filter((ns) => !PRIVATE_READ_NAMESPACES.has(ns)),
+  ...CLIENT_WEBAUTHN_SHARE_NAMESPACES,
+]);
+
+export const isPublicReadNamespace = (namespace?: string): boolean => PUBLIC_READ_NAMESPACES.has(namespace || "");
+
+// Namespaces that may be written through the bulk write routes. Same as the public-read
+// allowlist, plus noncev2: the tKey SDK legitimately writes noncev2 = "<deleted>" during the
+// OneKey -> tKey upgrade via /bulk_set_stream (signature-gated). pub_noncev2 stays write-blocked
+// here; it is only ever created server-side inside /get_or_set_nonce. Unknown namespaces are
+// rejected so bulk writes cannot land data that generic /get would then refuse to serve.
+export const WRITABLE_NAMESPACES = new Set<string>([...PUBLIC_READ_NAMESPACES, NONCEV2]);
+
+export const isWritableNamespace = (namespace?: string): boolean => WRITABLE_NAMESPACES.has(namespace || "");
+
 export interface Data {
   id: string;
   created_at: Date;
