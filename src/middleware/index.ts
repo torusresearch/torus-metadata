@@ -91,10 +91,11 @@ export const validateNamespace = (req: Request, res: Response, next: NextFunctio
   }
 };
 
-// Guards the unauthenticated /get route: only namespaces on the canonical public-read
-// allowlist may be served. Reserved nonce namespaces (noncev2, pub_noncev2), every other
-// private/recovery namespace, and unknown namespaces are rejected BEFORE a table is
-// resolved or any cache/DB lookup happens. getDBTableName is not an authorization check.
+// Guards both the unauthenticated /get route and the /set write route: only namespaces on
+// the canonical public-read allowlist may be read or written. Reserved nonce namespaces
+// (noncev2, pub_noncev2), every other private/recovery namespace, and unknown namespaces are
+// rejected BEFORE a table is resolved or any cache/DB lookup/write happens. getDBTableName is
+// not an authorization check.
 export const validatePublicReadNamespace = (req: Request, res: Response, next: NextFunction) => {
   try {
     const { namespace } = req.body;
@@ -113,11 +114,18 @@ export const validatePublicReadNamespace = (req: Request, res: Response, next: N
   }
 };
 
-export const validateNamespaceLoop = (key: string) => (req: Request, _: Response, next: NextFunction) => {
+export const validateNamespaceLoop = (key: string) => (req: Request, res: Response, next: NextFunction) => {
   const paramsObject: { [key: string]: SetDataInput[] } = req.body;
   const mainParamToTest = paramsObject[key];
   for (const param of mainParamToTest) {
     const { namespace } = param;
+    // Guards writes the same way validatePublicReadNamespace guards reads: reject reserved
+    // nonce namespaces (noncev2, pub_noncev2) and unknown namespaces before any DB write.
+    if (!isPublicReadNamespace(namespace)) {
+      log.warn("[validateNamespaceLoop] namespace is not writable through this endpoint", { namespace });
+      res.status(403).json({ error: { namespace: "namespace is not writable through this endpoint" }, success: false });
+      return;
+    }
     param.tableName = getDBTableName(namespace);
   }
   next();
