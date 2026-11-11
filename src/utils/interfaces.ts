@@ -33,7 +33,14 @@ const PRIVATE_READ_NAMESPACES = new Set<string>([NONCEV2, PUB_NONCEV2]);
 // Canonical allowlist of namespaces that generic /get may serve without a signature.
 // Derived from the known namespace table minus any private/recovery namespaces, so that
 // reserved nonce namespaces and unknown namespaces are rejected by default.
-export const PUBLIC_READ_NAMESPACES = new Set<string>(Object.keys(DBTableMap).filter((ns) => !PRIVATE_READ_NAMESPACES.has(ns)));
+// Clients (metadata-helpers webAuthnShareResolver) send the "webauthn_" spellings, which are not
+// DBTableMap keys and resolve to the fallback table, so they are allowed explicitly.
+const CLIENT_WEBAUTHN_SHARE_NAMESPACES = ["webauthn_torus_share", "webauthn_device_share"];
+
+export const PUBLIC_READ_NAMESPACES = new Set<string>([
+  ...Object.keys(DBTableMap).filter((ns) => !PRIVATE_READ_NAMESPACES.has(ns)),
+  ...CLIENT_WEBAUTHN_SHARE_NAMESPACES,
+]);
 
 export const isPublicReadNamespace = (namespace?: string): boolean => PUBLIC_READ_NAMESPACES.has(namespace || "");
 
