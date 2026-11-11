@@ -22,7 +22,7 @@ import {
   validateSignature,
 } from "../middleware";
 import { constructKey, getError, MAX_BATCH_SIZE, REDIS_TIMEOUT } from "../utils";
-import { DataInsertType, DBTableName, SetDataInput } from "../utils/interfaces";
+import { DataInsertType, DBTableName, getDBTableName, SetDataInput } from "../utils/interfaces";
 
 const upload = multer({
   limits: { fieldSize: 30 * 1024 * 1024 },
@@ -386,7 +386,11 @@ router.post(
       }
 
       if (!oldValue) {
-        const oldRetrievedNonce = await knexRead(tableName).where({ key: oldKey }).orderBy("created_at", "desc").orderBy("id", "desc").first();
+        const oldRetrievedNonce = await knexRead(getDBTableName(LEGACY_NONCE_NAMESPACE))
+          .where({ key: oldKey })
+          .orderBy("created_at", "desc")
+          .orderBy("id", "desc")
+          .first();
         // i want a nil value here
         oldValue = oldRetrievedNonce?.value || undefined;
       }
