@@ -585,15 +585,28 @@ describe("API-calls", function () {
       expect(res.status).toBe(403);
     });
 
-    it("#/bulk_set should reject a share targeting a reserved nonce namespace", async function () {
+    it("#/bulk_set should reject a share with an unknown namespace", async function () {
       const payload = createSetPayload(ec.genKeyPair(), "bulk-ns-test");
+
+      const res = await fetch(`${server}/bulk_set`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shares: [{ ...payload, namespace: "foo" }] }),
+      });
+      expect(res.status).toBe(403);
+    });
+
+    it("#/bulk_set should allow a noncev2 share (OneKey -> tKey delete)", async function () {
+      // The tKey SDK deletes the v2 nonce by bulk-writing noncev2 = "<deleted>" during the
+      // OneKey -> tKey upgrade, so the write-namespace guard must let noncev2 through.
+      const payload = createSetPayload(ec.genKeyPair(), "<deleted>");
 
       const res = await fetch(`${server}/bulk_set`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ shares: [{ ...payload, namespace: "noncev2" }] }),
       });
-      expect(res.status).toBe(403);
+      expect(res.status).toBe(200);
     });
   });
 });

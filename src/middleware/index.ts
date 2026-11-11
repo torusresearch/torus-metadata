@@ -4,7 +4,7 @@ import { NextFunction, Request, Response } from "express";
 import log from "loglevel";
 
 import { getError, isValidLockSignature, isValidSignature } from "../utils";
-import { getDBTableName, isPublicReadNamespace, LockDataInput, SetDataInput } from "../utils/interfaces";
+import { getDBTableName, isPublicReadNamespace, isWritableNamespace, LockDataInput, SetDataInput } from "../utils/interfaces";
 
 export const validateDataTimeStamp = async (req: Request, res: Response, next: NextFunction) => {
   const { set_data: setData }: SetDataInput = req.body;
@@ -119,9 +119,10 @@ export const validateNamespaceLoop = (key: string) => (req: Request, res: Respon
   const mainParamToTest = paramsObject[key];
   for (const param of mainParamToTest) {
     const { namespace } = param;
-    // Guards writes the same way validatePublicReadNamespace guards reads: reject reserved
-    // nonce namespaces (noncev2, pub_noncev2) and unknown namespaces before any DB write.
-    if (!isPublicReadNamespace(namespace)) {
+    // Reject unknown namespaces and pub_noncev2 before any DB write, so bulk writes cannot land
+    // data that generic /get would then refuse to serve. noncev2 stays allowed here: the tKey SDK
+    // writes noncev2 = "<deleted>" through this route during the OneKey -> tKey upgrade.
+    if (!isWritableNamespace(namespace)) {
       log.warn("[validateNamespaceLoop] namespace is not writable through this endpoint", { namespace });
       res.status(403).json({ error: { namespace: "namespace is not writable through this endpoint" }, success: false });
       return;

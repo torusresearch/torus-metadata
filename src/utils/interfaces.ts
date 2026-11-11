@@ -44,6 +44,15 @@ export const PUBLIC_READ_NAMESPACES = new Set<string>([
 
 export const isPublicReadNamespace = (namespace?: string): boolean => PUBLIC_READ_NAMESPACES.has(namespace || "");
 
+// Namespaces that may be written through the bulk write routes. Same as the public-read
+// allowlist, plus noncev2: the tKey SDK legitimately writes noncev2 = "<deleted>" during the
+// OneKey -> tKey upgrade via /bulk_set_stream (signature-gated). pub_noncev2 stays write-blocked
+// here; it is only ever created server-side inside /get_or_set_nonce. Unknown namespaces are
+// rejected so bulk writes cannot land data that generic /get would then refuse to serve.
+export const WRITABLE_NAMESPACES = new Set<string>([...PUBLIC_READ_NAMESPACES, NONCEV2]);
+
+export const isWritableNamespace = (namespace?: string): boolean => WRITABLE_NAMESPACES.has(namespace || "");
+
 export interface Data {
   id: string;
   created_at: Date;
