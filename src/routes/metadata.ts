@@ -18,6 +18,7 @@ import {
   validateMetadataLoopInput,
   validateNamespace,
   validateNamespaceLoop,
+  validatePublicReadNamespace,
   validateSignature,
 } from "../middleware";
 import { constructKey, getError, MAX_BATCH_SIZE, REDIS_TIMEOUT } from "../utils";
@@ -35,6 +36,11 @@ const NAMESPACES = {
 };
 
 const RESERVED_NAMESPACES = [NAMESPACES.nonceV2, NAMESPACES.pubNonceV2];
+
+// Fixed, server-side namespace used to probe for a legacy (v1) nonce.
+// It is never user-controlled and must not collide with any reserved v2 namespace,
+// so the legacy probe can never be pointed at a v2 nonce key.
+const LEGACY_NONCE_NAMESPACE = "";
 
 const validateSetData = Joi.object({
   namespace: Joi.string().max(128),
@@ -61,7 +67,7 @@ router.post(
     },
     { allowUnknown: true }
   ),
-  validateNamespace,
+  validatePublicReadNamespace,
   async (req: Request, res: Response) => {
     try {
       const {
@@ -356,11 +362,20 @@ router.post(
         pub_key_X: pubKeyX,
         pub_key_Y: pubKeyY,
         set_data: { data },
-        namespace: oldNamespace,
+        namespace: oldNamespace = "",
         tableName,
       }: SetDataInput = req.body;
 
-      const oldKey = constructKey(pubKeyX, pubKeyY, oldNamespace);
+      // Reject reserved namespace selectors before performing any lookup, so a caller
+      // cannot steer the legacy probe toward a reserved v2 nonce key.
+      if (RESERVED_NAMESPACES.includes(oldNamespace)) {
+        res.status(400).json({ error: `${oldNamespace} namespace is a reserved namespace`, success: false });
+        return;
+      }
+
+      // Always probe the legacy nonce under a fixed server-side namespace, never the
+      // caller-supplied one, so this lookup can never resolve to a v2 nonce key.
+      const oldKey = constructKey(pubKeyX, pubKeyY, LEGACY_NONCE_NAMESPACE);
 
       // check if it already exists
       let oldValue: string;
@@ -377,7 +392,13 @@ router.post(
       }
 
       if (oldValue) {
-        res.json({ typeOfUser: "v1", nonce: oldValue });
+        // Never return a probe value as nonce unless the request carried a valid signature.
+        // Unsigned/public callers only receive the non-sensitive type marker.
+        const legacyResponse: { typeOfUser: "v1"; nonce?: string } = { typeOfUser: "v1" };
+        if (!res.locals.noValidSig) {
+          legacyResponse.nonce = oldValue;
+        }
+        res.json(legacyResponse);
         return;
       }
 

@@ -24,6 +24,19 @@ const DBTableMap: Record<string, string> = {
 
 export type DBTableName = keyof typeof DBTableMap;
 
+export const PUB_NONCEV2 = "pub_noncev2";
+
+// Private/recovery namespaces must never be served by the unauthenticated /get route.
+// Private nonce material is only retrievable through the signature-gated /get_or_set_nonce flow.
+const PRIVATE_READ_NAMESPACES = new Set<string>([NONCEV2, PUB_NONCEV2]);
+
+// Canonical allowlist of namespaces that generic /get may serve without a signature.
+// Derived from the known namespace table minus any private/recovery namespaces, so that
+// reserved nonce namespaces and unknown namespaces are rejected by default.
+export const PUBLIC_READ_NAMESPACES = new Set<string>(Object.keys(DBTableMap).filter((ns) => !PRIVATE_READ_NAMESPACES.has(ns)));
+
+export const isPublicReadNamespace = (namespace?: string): boolean => PUBLIC_READ_NAMESPACES.has(namespace || "");
+
 export interface Data {
   id: string;
   created_at: Date;

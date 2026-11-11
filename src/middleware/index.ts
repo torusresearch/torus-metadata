@@ -4,7 +4,7 @@ import { NextFunction, Request, Response } from "express";
 import log from "loglevel";
 
 import { getError, isValidLockSignature, isValidSignature } from "../utils";
-import { getDBTableName, LockDataInput, SetDataInput } from "../utils/interfaces";
+import { getDBTableName, isPublicReadNamespace, LockDataInput, SetDataInput } from "../utils/interfaces";
 
 export const validateDataTimeStamp = async (req: Request, res: Response, next: NextFunction) => {
   const { set_data: setData }: SetDataInput = req.body;
@@ -82,6 +82,28 @@ export const validateNamespace = (req: Request, res: Response, next: NextFunctio
   try {
     const { namespace } = req.body;
     req.body.tableName = getDBTableName(namespace); // function will validate namespace too
+    next();
+    return;
+  } catch (error) {
+    log.error(error);
+    res.status(500).json({ error: getError(error), success: false });
+    return;
+  }
+};
+
+// Guards the unauthenticated /get route: only namespaces on the canonical public-read
+// allowlist may be served. Reserved nonce namespaces (noncev2, pub_noncev2), every other
+// private/recovery namespace, and unknown namespaces are rejected BEFORE a table is
+// resolved or any cache/DB lookup happens. getDBTableName is not an authorization check.
+export const validatePublicReadNamespace = (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { namespace } = req.body;
+    if (!isPublicReadNamespace(namespace)) {
+      log.warn("[validatePublicReadNamespace] namespace is not publicly readable", { namespace });
+      res.status(403).json({ error: { namespace: "namespace is not readable through this endpoint" }, success: false });
+      return;
+    }
+    req.body.tableName = getDBTableName(namespace);
     next();
     return;
   } catch (error) {
