@@ -26,8 +26,6 @@ export const REDIS_TIMEOUT = 90; // seconds
 export const REDIS_LOCK_TIMEOUT = 90;
 export const MAX_BATCH_SIZE = 60 * 1024 * 1024; // 60MB
 
-export const REDIS_NAME_SPACE = "EMAIL_AUTH_DATA";
-
 export const isValidSignature = (data: SetDataInput): boolean => {
   const { pub_key_X: pubKeyX, pub_key_Y: pubKeyY, signature, set_data: setData } = data;
   const pubKey = coordsToPublicKey(hexToBytes(pubKeyX.padStart(64, "0")), hexToBytes(pubKeyY.padStart(64, "0")));
