@@ -22,7 +22,7 @@ import {
   validateSignature,
 } from "../middleware";
 import { constructKey, getError, MAX_BATCH_SIZE, REDIS_TIMEOUT } from "../utils";
-import { DataInsertType, DBTableName, getDBTableName, SetDataInput } from "../utils/interfaces";
+import { DataInsertType, DBTableName, SetDataInput } from "../utils/interfaces";
 
 const upload = multer({
   limits: { fieldSize: 30 * 1024 * 1024 },
@@ -34,11 +34,6 @@ const NAMESPACES = {
   nonceV2: "noncev2",
   pubNonceV2: "pub_noncev2",
 };
-
-// Fixed, server-side namespace used to probe for a legacy (v1) nonce.
-// It is never user-controlled and must not collide with any reserved v2 namespace,
-// so the legacy probe can never be pointed at a v2 nonce key.
-const LEGACY_NONCE_NAMESPACE = "";
 
 const validateSetData = Joi.object({
   namespace: Joi.string().max(128),
@@ -357,9 +352,10 @@ router.post(
         tableName,
       }: SetDataInput = req.body;
 
-      // Always probe the legacy nonce under a fixed server-side namespace, never the
-      // caller-supplied one, so this lookup can never resolve to a v2 nonce key.
-      const oldKey = constructKey(pubKeyX, pubKeyY, LEGACY_NONCE_NAMESPACE);
+      // A v1 (legacy) nonce lives under the empty namespace in the "data" table, so probe with
+      // the no-namespace key. The route rejects any caller-supplied namespace, so tableName is
+      // always "data" here and this lookup can never resolve to a v2 nonce key.
+      const oldKey = constructKey(pubKeyX, pubKeyY);
 
       // check if it already exists
       let oldValue: string;
@@ -370,11 +366,7 @@ router.post(
       }
 
       if (!oldValue) {
-        const oldRetrievedNonce = await knexRead(getDBTableName(LEGACY_NONCE_NAMESPACE))
-          .where({ key: oldKey })
-          .orderBy("created_at", "desc")
-          .orderBy("id", "desc")
-          .first();
+        const oldRetrievedNonce = await knexRead(tableName).where({ key: oldKey }).orderBy("created_at", "desc").orderBy("id", "desc").first();
         // i want a nil value here
         oldValue = oldRetrievedNonce?.value || undefined;
       }
