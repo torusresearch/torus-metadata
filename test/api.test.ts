@@ -522,5 +522,60 @@ describe("API-calls", function () {
       expect(data.pubNonce.x).toBeDefined();
       expect(data.pubNonce.y).toBeDefined();
     });
+
+    it("rejects reserved namespace probes for the v2 private nonce", async function () {
+      const keyPair = ec.genKeyPair();
+      const pub = keyPair.getPublic();
+      const pubKeyX = pub.getX().toString("hex", 32);
+      const pubKeyY = pub.getY().toString("hex", 32);
+
+      const timestamp = Math.floor(Date.now() / 1000).toString(16);
+      const setData = { data: "getOrSetNonce", timestamp };
+
+      const hash = keccak256(jsonStableStringify(setData) as string);
+      const sig = ec.sign(hash, keyPair, "hex", { canonical: false });
+
+      const r = sig.r.toArrayLike(Buffer, "be", 32);
+      const s = sig.s.toArrayLike(Buffer, "be", 32);
+      const ethSig = Buffer.concat([r, s, Buffer.from([sig.recoveryParam || 0])]);
+      const signatureBase64 = ethSig.toString("base64");
+
+      const createRes = await fetch(`${server}/get_or_set_nonce`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pub_key_X: pubKeyX,
+          pub_key_Y: pubKeyY,
+          set_data: setData,
+          signature: signatureBase64,
+        }),
+      });
+      expect(createRes.status).toBe(200);
+      const created = (await createRes.json()) as { typeOfUser: string; nonce?: string };
+      expect(created.typeOfUser).toBe("v2");
+      expect(created.nonce).toBeDefined();
+      const v2Nonce = created.nonce as string;
+
+      const probeRes = await fetch(`${server}/get_or_set_nonce`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pub_key_X: pubKeyX,
+          pub_key_Y: pubKeyY,
+          namespace: "noncev2",
+          set_data: { data: "getNonce" },
+        }),
+      });
+      expect(probeRes.status).toBe(400);
+      const probeBody = await probeRes.json();
+      assert.ok(!JSON.stringify(probeBody).includes(v2Nonce));
+
+      const getRes = await fetch(`${server}/get`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pub_key_X: pubKeyX, pub_key_Y: pubKeyY, namespace: "noncev2" }),
+      });
+      expect(getRes.status).toBe(400);
+    });
   });
 });

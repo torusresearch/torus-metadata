@@ -70,6 +70,11 @@ router.post(
         pub_key_Y: pubKeyY,
         tableName = "",
       }: { namespace?: string; pub_key_X: string; pub_key_Y: string; tableName?: DBTableName } = req.body;
+      // private v2 nonce must never be readable unsigned; pub_noncev2 stays public
+      if (namespace === NAMESPACES.nonceV2) {
+        res.status(400).json({ error: `${namespace} namespace is a reserved namespace`, success: false });
+        return;
+      }
       const key = constructKey(pubKeyX, pubKeyY, namespace);
       let value: string;
       try {
@@ -359,6 +364,11 @@ router.post(
         namespace: oldNamespace,
         tableName,
       }: SetDataInput = req.body;
+
+      if (RESERVED_NAMESPACES.includes(oldNamespace)) {
+        res.status(400).json({ error: `${oldNamespace} namespace is a reserved namespace`, success: false });
+        return;
+      }
 
       const oldKey = constructKey(pubKeyX, pubKeyY, oldNamespace);
 
