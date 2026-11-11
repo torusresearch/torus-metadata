@@ -19,7 +19,6 @@ const envPath = path.resolve(".", process.env.NODE_ENV !== "production" ? ".env.
 dotenv.config({ path: envPath });
 
 // bring all routes here
-import { setupIoListeners, setupSocketIo, setupSocketMiddleware } from "./database/socket";
 import routes from "./routes";
 import { traceContextMiddleware } from "./utils/traceContext";
 
@@ -27,9 +26,6 @@ const app = express();
 const http = createServer(app);
 
 app.set("trust proxy", 1);
-
-const io = setupSocketIo(http);
-setupIoListeners(io);
 
 http.keepAliveTimeout = 301 * 1000;
 http.headersTimeout = 305 * 1000;
@@ -73,7 +69,6 @@ app.use(helmet()); // middleware which adds http headers
 app.use(express.urlencoded({ extended: false, limit: "20mb" })); // middleware which parses body
 app.use(express.json({ limit: "20mb" })); // converts body to json
 
-app.use(setupSocketMiddleware(io));
 app.use(traceContextMiddleware);
 
 app.use("/metadata-service", routes);
