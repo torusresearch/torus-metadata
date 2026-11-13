@@ -32,7 +32,12 @@ export const isValidSignature = (data: SetDataInput): boolean => {
   const sigBytes = base64ToBytes(signature).subarray(0, 64);
   // this is to ensure that the signature is valid for both JSON and stringified data
   // and for backward compatibility.
-  const casesToCheck = [stringify(setData), JSON.stringify(setData), JSON.stringify({ timestamp: setData.timestamp, data: setData.data })];
+  const casesToCheck = [stringify(setData), JSON.stringify(setData)];
+  // the legacy form only covers timestamp and data, so it must not authorize payloads carrying other fields
+  // (e.g. a /set signature replayed to /get_or_set_nonce with an unsigned operation)
+  if (Object.keys(setData).every((field) => field === "timestamp" || field === "data")) {
+    casesToCheck.push(JSON.stringify({ timestamp: setData.timestamp, data: setData.data }));
+  }
   for (const dataCase of casesToCheck) {
     const msgHash = keccak256Bytes(utf8ToBytes(dataCase));
     const result = secp256k1.verify(sigBytes, msgHash, pubKey, { prehash: false, format: "compact", lowS: false });

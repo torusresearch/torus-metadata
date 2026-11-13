@@ -17,6 +17,8 @@ log.setLevel((process.env.LOG_LEVEL as log.LogLevelDesc) || log.levels.INFO);
 const envPath = path.resolve(".", process.env.NODE_ENV !== "production" ? ".env.development" : ".env");
 // setup environment
 dotenv.config({ path: envPath });
+// torus nodes need it to read private nonces; without it legacy logins silently lose their nonce
+if (!process.env.TORUS_NODE_API_KEY) throw new Error("TORUS_NODE_API_KEY is not set");
 
 // bring all routes here
 import routes from "./routes";
