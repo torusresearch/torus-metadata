@@ -609,4 +609,83 @@ describe("API-calls", function () {
       expect(res.status).toBe(200);
     });
   });
+
+  describe("/get_or_set_nonce current format", function () {
+    const ec = new EC("secp256k1");
+    const nodeApiKey = process.env.TORUS_NODE_API_KEY || "torus-node-dev-key";
+    type NonceResponse = { typeOfUser: string; nonce?: string; pubNonce: { x: string; y: string } };
+
+    function signSetData(keyPair: EC.KeyPair, setData: Record<string, string>) {
+      const sig = ec.sign(keccak256(jsonStableStringify(setData) as string), keyPair, "hex", { canonical: false });
+      const ethSig = Buffer.concat([sig.r.toArrayLike(Buffer, "be", 32), sig.s.toArrayLike(Buffer, "be", 32), Buffer.from([sig.recoveryParam || 0])]);
+      return ethSig.toString("base64");
+    }
+
+    const pubKeyOf = (keyPair: EC.KeyPair) => ({
+      pub_key_X: keyPair.getPublic().getX().toString("hex", 32),
+      pub_key_Y: keyPair.getPublic().getY().toString("hex", 32),
+    });
+
+    const nodeHeaders = { "x-web3-api-key": nodeApiKey };
+    const postNonce = (body: Record<string, unknown>, headers: Record<string, string> = nodeHeaders) =>
+      fetch(`${server}/get_or_set_nonce`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...headers },
+        body: JSON.stringify(body),
+      });
+
+    const unsignedLookup = (operation: string) => ({ operation, data: "", seed: "", timestamp: "" });
+
+    it("#should store the signed nonce of an imported key and let torus nodes read it", async function () {
+      const keyPair = ec.genKeyPair();
+      const nonce = ec.genKeyPair().getPrivate().toString("hex", 32);
+      const setData = { operation: "getOrSetNonce", data: nonce, seed: "", timestamp: Math.floor(Date.now() / 1000).toString(16) };
+
+      const setRes = await postNonce({ ...pubKeyOf(keyPair), key_type: "secp256k1", set_data: setData, signature: signSetData(keyPair, setData) });
+      expect(setRes.status).toBe(200);
+      const setBody = (await setRes.json()) as NonceResponse;
+      const expectedPubNonce = ec.keyFromPrivate(nonce).getPublic();
+      expect(setBody).toMatchObject({ typeOfUser: "v2", nonce, pubNonce: { x: expectedPubNonce.getX().toString("hex", 32) } });
+
+      const nodeBody = (await (
+        await postNonce({ ...pubKeyOf(keyPair), key_type: "secp256k1", set_data: unsignedLookup("getNonce") })
+      ).json()) as NonceResponse;
+      expect(nodeBody.nonce).toBe(nonce);
+    });
+
+    it("#should reject the current format from callers that are not torus nodes", async function () {
+      const body = { ...pubKeyOf(ec.genKeyPair()), set_data: unsignedLookup("getOrSetNonce") };
+      expect((await postNonce(body, {})).status).toBe(403);
+      expect((await postNonce(body, { "x-web3-api-key": `${nodeApiKey}x` })).status).toBe(403);
+    });
+
+    it("#should let a torus node create a nonce for a new user", async function () {
+      const res = await postNonce({ ...pubKeyOf(ec.genKeyPair()), key_type: "secp256k1", set_data: unsignedLookup("getOrSetNonce") });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as NonceResponse;
+      expect(body.typeOfUser).toBe("v2");
+      expect(body.nonce).toMatch(/^[0-9a-f]{64}$/);
+    });
+
+    it("#should reject an unsigned request that carries a nonce", async function () {
+      const nonce = ec.genKeyPair().getPrivate().toString("hex", 32);
+      const res = await postNonce({ ...pubKeyOf(ec.genKeyPair()), set_data: { operation: "getOrSetNonce", data: nonce, seed: "", timestamp: "" } });
+      expect(res.status).toBe(400);
+    });
+
+    it("#should reject a legacy {data,timestamp} signature replayed with an operation", async function () {
+      const keyPair = ec.genKeyPair();
+      const nonce = ec.genKeyPair().getPrivate().toString("hex", 32);
+      const timestamp = Math.floor(Date.now() / 1000).toString(16);
+      const signature = signSetData(keyPair, { data: nonce, timestamp });
+
+      const res = await postNonce({ ...pubKeyOf(keyPair), set_data: { operation: "getOrSetNonce", data: nonce, timestamp }, signature });
+      expect(res.status).toBe(403);
+    });
+
+    it("#should reject non-secp256k1 key types", async function () {
+      const res = await postNonce({ ...pubKeyOf(ec.genKeyPair()), key_type: "ed25519", set_data: unsignedLookup("getNonce") });
+      expect(res.status).toBe(400);
+    });
+  });
 });

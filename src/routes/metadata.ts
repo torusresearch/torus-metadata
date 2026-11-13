@@ -10,6 +10,7 @@ import { getHashAndWriteAsync } from "../database/ipfs";
 import { knexRead, knexWrite } from "../database/knex";
 import redis, { redlock } from "../database/redis";
 import {
+  checkTorusNodeApiKey,
   serializeStreamBody,
   validateDataTimeStamp,
   validateGetOrSetNonceSetInput,
@@ -333,24 +334,25 @@ router.post(
     [Segments.BODY]: Joi.object({
       pub_key_X: Joi.string().max(64).hex().required(),
       pub_key_Y: Joi.string().max(64).hex().required(),
+      key_type: Joi.string().allow(""),
+      // set_data fields are checked per request format in validateGetOrSetNonceSetInput
       set_data: Joi.object({
-        data: Joi.string(),
-        timestamp: Joi.string().hex(),
+        operation: Joi.string(),
+        data: Joi.string().allow(""),
+        timestamp: Joi.string().allow(""),
+        seed: Joi.string().allow(""),
       }),
       signature: Joi.string().max(88),
     }),
   }),
   validateGetOrSetNonceSetInput,
   validateGetOrSetNonceSignature,
+  checkTorusNodeApiKey,
   validateNamespace,
   async (req: Request, res: Response) => {
     try {
-      const {
-        pub_key_X: pubKeyX,
-        pub_key_Y: pubKeyY,
-        set_data: { data },
-        tableName,
-      }: SetDataInput = req.body;
+      const { pub_key_X: pubKeyX, pub_key_Y: pubKeyY, tableName }: SetDataInput = req.body;
+      const { operation, newNonce } = res.locals.nonceCommand as { operation: string; newNonce: string };
 
       // A v1 (legacy) nonce lives under the empty namespace in the "data" table, so probe with
       // the no-namespace key. The route rejects any caller-supplied namespace, so tableName is
@@ -423,7 +425,7 @@ router.post(
 
       nonce = await getNonce(true);
 
-      if (nonce === "<v1>" || (!nonce && data !== "getOrSetNonce")) {
+      if (nonce === "<v1>" || (!nonce && operation !== "getOrSetNonce")) {
         res.json({ typeOfUser: "v1" });
         return;
       } // This is a v1 user who didn't have a nonce before we rolled out v2, if he sets his nonce in the future, this value will be ignored
@@ -451,8 +453,8 @@ router.post(
             pubNonce = await getPubNonce(true);
             gettingPubNonceTime = process.hrtime.bigint();
           } else {
-            // create new nonce
-            nonce = bytesToHex(generatePrivate());
+            // create new nonce, or store the signed nonce of an imported key
+            nonce = newNonce ? newNonce.padStart(64, "0") : bytesToHex(generatePrivate());
 
             const unformattedPubNonce = secp256k1.getPublicKey(hexToBytes(nonce), false);
             if (unformattedPubNonce.length !== 65) {
@@ -504,8 +506,8 @@ router.post(
         ipfs,
         nonce: undefined,
       } as { typeOfUser: "v1" | "v2"; upgraded: boolean; pubNonce: string | { x: string; y: string }; ipfs: string[]; nonce?: string };
-      if (!returnResponse.upgraded && !res.locals.noValidSig) {
-        // if account is 1/1 and there's a valid sig, return nonce
+      if (!returnResponse.upgraded && (!res.locals.noValidSig || res.locals.isTorusNode)) {
+        // if account is 1/1 and there's a valid sig or a torus node api key, return nonce
         returnResponse.nonce = nonce;
       }
       res.json(returnResponse);
