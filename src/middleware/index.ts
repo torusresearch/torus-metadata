@@ -191,7 +191,12 @@ const CURRENT_UNSIGNED_NONCE_DATA_SCHEMA = Joi.object({
   seed: Joi.any().valid(""),
 });
 
+// Only torus nodes use the current format on this server; tKey and older clients use the v15 format.
 const validateCurrentNonceInput = (req: Request, res: Response, next: NextFunction) => {
+  if (!isValidTorusNodeApiKey(req.get("x-web3-api-key"))) {
+    res.status(403).json({ error: { set_data: "This request format is only accepted from torus nodes" }, success: false });
+    return;
+  }
   const { set_data: setData, key_type: keyType } = req.body;
   if (keyType && keyType !== "secp256k1") {
     res.status(400).json({ error: { key_type: "Only secp256k1 keys are supported" }, success: false });

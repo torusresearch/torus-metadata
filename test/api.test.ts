@@ -626,7 +626,8 @@ describe("API-calls", function () {
       pub_key_Y: keyPair.getPublic().getY().toString("hex", 32),
     });
 
-    const postNonce = (body: Record<string, unknown>, headers: Record<string, string> = {}) =>
+    const nodeHeaders = { "x-web3-api-key": nodeApiKey };
+    const postNonce = (body: Record<string, unknown>, headers: Record<string, string> = nodeHeaders) =>
       fetch(`${server}/get_or_set_nonce`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...headers },
@@ -647,25 +648,19 @@ describe("API-calls", function () {
       expect(setBody).toMatchObject({ typeOfUser: "v2", nonce, pubNonce: { x: expectedPubNonce.getX().toString("hex", 32) } });
 
       const nodeBody = (await (
-        await postNonce({ ...pubKeyOf(keyPair), key_type: "secp256k1", set_data: unsignedLookup("getNonce") }, { "x-web3-api-key": nodeApiKey })
+        await postNonce({ ...pubKeyOf(keyPair), key_type: "secp256k1", set_data: unsignedLookup("getNonce") })
       ).json()) as NonceResponse;
       expect(nodeBody.nonce).toBe(nonce);
+    });
 
-      const publicBody = (await (await postNonce({ ...pubKeyOf(keyPair), set_data: unsignedLookup("getNonce") })).json()) as NonceResponse;
-      expect(publicBody.nonce).toBeUndefined();
-      expect(publicBody.pubNonce).toEqual(setBody.pubNonce);
-
-      const wrongKeyBody = (await (
-        await postNonce({ ...pubKeyOf(keyPair), set_data: unsignedLookup("getNonce") }, { "x-web3-api-key": `${nodeApiKey}x` })
-      ).json()) as NonceResponse;
-      expect(wrongKeyBody.nonce).toBeUndefined();
+    it("#should reject the current format from callers that are not torus nodes", async function () {
+      const body = { ...pubKeyOf(ec.genKeyPair()), set_data: unsignedLookup("getOrSetNonce") };
+      expect((await postNonce(body, {})).status).toBe(403);
+      expect((await postNonce(body, { "x-web3-api-key": `${nodeApiKey}x` })).status).toBe(403);
     });
 
     it("#should let a torus node create a nonce for a new user", async function () {
-      const res = await postNonce(
-        { ...pubKeyOf(ec.genKeyPair()), key_type: "secp256k1", set_data: unsignedLookup("getOrSetNonce") },
-        { "x-web3-api-key": nodeApiKey }
-      );
+      const res = await postNonce({ ...pubKeyOf(ec.genKeyPair()), key_type: "secp256k1", set_data: unsignedLookup("getOrSetNonce") });
       expect(res.status).toBe(200);
       const body = (await res.json()) as NonceResponse;
       expect(body.typeOfUser).toBe("v2");
