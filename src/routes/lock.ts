@@ -13,14 +13,44 @@ const router = express.Router();
 // 1: acquire/release lock succeeded
 // 2: unable to release lock
 
+// Unix seconds are 10 digits; 16 still fits in Number.MAX_SAFE_INTEGER.
+// Check length before any numeric pattern. Joi 17.13.3 number coercion runs /0+$/
+// (number.js extractSignificantDigits), which is quadratic in a run of zeros and
+// blocks the process for the whole body limit (20mb).
+const MAX_LOCK_TIMESTAMP_DIGITS = 16;
+
+const isShortDigitString = (value: string): boolean => {
+  if (value.length < 1 || value.length > MAX_LOCK_TIMESTAMP_DIGITS) return false;
+  for (const char of value) {
+    if (char < "0" || char > "9") return false;
+  }
+  return true;
+};
+
+const lockTimestamp = Joi.custom((value, helpers) => {
+  if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) {
+    return value;
+  }
+  // Short digit strings stay accepted and are coerced, matching previous Joi.number() behavior.
+  if (typeof value === "string" && isShortDigitString(value)) {
+    const parsed = Number(value);
+    if (Number.isSafeInteger(parsed)) return parsed;
+  }
+  return helpers.error("any.invalid");
+})
+  .messages({ "any.invalid": "{{#label}} must be a safe integer" })
+  .required();
+
+const lockData = Joi.object({
+  timestamp: lockTimestamp,
+}).required();
+
 router.post(
   "/acquireLock",
   celebrate({
     [Segments.BODY]: Joi.object({
       key: Joi.string().hex().max(130).required(),
-      data: Joi.object({
-        timestamp: Joi.number().required(),
-      }).required(),
+      data: lockData,
       signature: Joi.string().max(144).required(),
     }),
   }),
@@ -62,9 +92,7 @@ router.post(
       id: Joi.string().max(7).required(),
       key: Joi.string().hex().max(130).required(),
       signature: Joi.string().max(144).required(),
-      data: Joi.object({
-        timestamp: Joi.number().required(),
-      }).required(),
+      data: lockData,
     }),
   }),
   validateLockData,
