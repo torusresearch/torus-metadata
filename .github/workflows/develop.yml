@@ -19,7 +19,8 @@ jobs:
 
   deployToSing:
     name: Deploy
-    runs-on: ubuntu-latest
+    # ubuntu-26.04 uses the containerd image store. Its docker push sends HEAD /manifests requests, and ECR answers them with 403 for this role.
+    runs-on: ubuntu-24.04
     needs: test
     permissions:
       contents: read
