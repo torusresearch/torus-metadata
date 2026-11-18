@@ -68,12 +68,12 @@ app.disable("x-powered-by");
 if (process.env.NODE_ENV === "development") app.use(morgan("dev")); // HTTP logging
 app.use(compression()); // Enable compression of body cause ALB doesn't do so
 app.use(cors(corsOptions)); // middleware to enables cors
+app.use(rateLimiter);
 app.use(helmet()); // middleware which adds http headers
 app.use(express.urlencoded({ extended: false, limit: "20mb" })); // middleware which parses body
 app.use(express.json({ limit: "20mb" })); // converts body to json
 
 app.use(traceContextMiddleware);
-app.use(rateLimiter);
 
 app.use("/metadata-service", routes);
 app.use("/", routes);

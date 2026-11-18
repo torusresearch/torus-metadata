@@ -280,7 +280,7 @@ export const rateLimiter = rateLimit({
   limit: 300,
   standardHeaders: "draft-8",
   legacyHeaders: false,
-  skip: (req) => isValidTorusNodeApiKey(req.get("x-web3-api-key")),
+  skip: (req) => isValidTorusNodeApiKey(req.get("x-web3-api-key")) || req.path === "/health" || req.path === "/metadata-service/health",
 });
 
 export const validateGetOrSetNonceSignature = async (req: Request, res: Response, next: NextFunction) => {
