@@ -3,6 +3,7 @@ import { timingSafeEqual } from "crypto";
 import { secp256k1 } from "@toruslabs/metadata-helpers";
 import { Joi } from "celebrate";
 import { NextFunction, Request, Response } from "express";
+import { rateLimit } from "express-rate-limit";
 import log from "loglevel";
 
 import { getError, isValidLockSignature, isValidSignature } from "../utils";
@@ -271,6 +272,16 @@ export const checkTorusNodeApiKey = (req: Request, res: Response, next: NextFunc
   res.locals.isTorusNode = isValidTorusNodeApiKey(req.get("x-web3-api-key"));
   next();
 };
+
+// Torus nodes call from a few IPs on behalf of every user, so a valid node key skips the per-IP limit.
+// shortcut: in-memory store counts per process, move to a Redis store if per-IP totals must hold across instances.
+export const rateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 300,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  skip: (req) => isValidTorusNodeApiKey(req.get("x-web3-api-key")) || req.path === "/health" || req.path === "/metadata-service/health",
+});
 
 export const validateGetOrSetNonceSignature = async (req: Request, res: Response, next: NextFunction) => {
   if (!validV2InputWithSig(req.body)) {

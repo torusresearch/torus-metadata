@@ -21,6 +21,7 @@ dotenv.config({ path: envPath });
 if (!process.env.TORUS_NODE_API_KEY) throw new Error("TORUS_NODE_API_KEY is not set");
 
 // bring all routes here
+import { rateLimiter } from "./middleware";
 import routes from "./routes";
 import { traceContextMiddleware } from "./utils/traceContext";
 
@@ -36,7 +37,7 @@ http.headersTimeout = 305 * 1000;
 const corsOptions = {
   //   origin: ["https://localhost:3000", /\.tor\.us$/],
   origin: true,
-  credentials: true,
+  credentials: false,
   allowedHeaders: [
     "Content-Type",
     "x-api-key",
@@ -67,6 +68,7 @@ app.disable("x-powered-by");
 if (process.env.NODE_ENV === "development") app.use(morgan("dev")); // HTTP logging
 app.use(compression()); // Enable compression of body cause ALB doesn't do so
 app.use(cors(corsOptions)); // middleware to enables cors
+app.use(rateLimiter);
 app.use(helmet()); // middleware which adds http headers
 app.use(express.urlencoded({ extended: false, limit: "20mb" })); // middleware which parses body
 app.use(express.json({ limit: "20mb" })); // converts body to json
