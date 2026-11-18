@@ -52,7 +52,8 @@ jobs:
           ECR_REPOSITORY: torus-metadata-lrc
           IMAGE_TAG: latest
         run: |
-          docker build -t "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" -t "$ECR_REGISTRY/$ECR_REPOSITORY:$GITHUB_SHA" .
+          # Docker 29 adds a provenance attestation. ECR rejects that manifest.
+          docker build --provenance=false -t "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" -t "$ECR_REGISTRY/$ECR_REPOSITORY:$GITHUB_SHA" .
           echo "Pushing image to ECR..."
           docker push "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
           docker push "$ECR_REGISTRY/$ECR_REPOSITORY:$GITHUB_SHA"
