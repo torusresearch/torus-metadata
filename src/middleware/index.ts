@@ -281,7 +281,12 @@ export const validateGetOrSetNonceSignature = async (req: Request, res: Response
     const { body }: { body: SetDataInput } = req;
     const isValid = isValidSignature(body);
     if (!isValid) {
-      log.error("[validateGetOrSetNonceSignature] Invalid signature", { body });
+      // set_data.data can be a secret imported nonce, so log only the fields that identify the request
+      log.error("[validateGetOrSetNonceSignature] Invalid signature", {
+        pubKeyX: body.pub_key_X,
+        pubKeyY: body.pub_key_Y,
+        setDataFields: Object.keys(body.set_data || {}),
+      });
       res.status(403).json({ error: { signature: "Invalid Signature" }, success: false });
       return;
     }
