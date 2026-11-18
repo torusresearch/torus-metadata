@@ -33,9 +33,14 @@ RUN npm run build
 FROM base AS prod-deps
 
 RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund && npm cache clean --force
+COPY --from=build /home/node/app/dist ./dist
 
-# BuildKit keeps the source owner on COPY --from, so the node-owned install
-# arrives owned by node. Reassign it to root. There is no --chown flag for KICS to flag.
+# BuildKit keeps the source owner on COPY --from. Hand the app to root in this stage,
+# so the final image gets one root-owned layer. A chown in the final stage would copy
+# node_modules into a second layer, and KICS flags COPY --chown.
+USER root
+RUN chown -R root:root /home/node/app
+
 FROM node:24.22.1-alpine
 
 ENV NODE_OPTIONS=--max-old-space-size=4096
@@ -43,9 +48,6 @@ ENV NODE_OPTIONS=--max-old-space-size=4096
 WORKDIR /app
 
 COPY --from=prod-deps /home/node/app ./
-COPY --from=build /home/node/app/dist ./dist
-
-RUN chown -R root:root /app
 
 USER node
 

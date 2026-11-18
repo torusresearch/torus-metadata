@@ -52,16 +52,14 @@ jobs:
         run: npm ci
 
       - name: Check dependency hardening
-        run: npm exec --no -- harden check --package-manager npm
+        run: npm run harden:check
 
-      - name: Check lint and format
+      # vp check also runs the type check.
+      - name: Check lint, format and types
         run: npm run check
 
       - name: Build
         run: npm run build
-
-      - name: Typecheck
-        run: npm run typecheck
 
       # The integration tests run the server, MySQL and Redis in Docker, on the same Node.js major as this job.
       - name: Run tests
@@ -90,14 +88,13 @@ jobs:
 
       - name: Smoke test image
         run: |
+          # Runs on success and on failure, so a crash message is always in the job log.
+          trap 'docker logs torus-metadata || true; docker rm -f torus-metadata || true; docker compose -f docker-compose-ci.yml down' EXIT
           docker compose -f docker-compose-ci.yml up -d --wait redis mysql
           docker run -d --name torus-metadata --network torus-metadata_default --env-file .env.development -p 5051:5051 torus-metadata:ci
           for _ in $(seq 1 30); do curl -fsS http://localhost:5051/health && break; sleep 1; done
           curl -fsS http://localhost:5051/health
           test "$(docker exec torus-metadata id -u)" != "0"
-          docker logs torus-metadata
-          docker rm -f torus-metadata
-          docker compose -f docker-compose-ci.yml down
 
   release-notes:
     if: github.event_name == 'pull_request' && !startsWith(github.head_ref, 'changeset-release/') && !startsWith(github.head_ref, 'dependabot/')
