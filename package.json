@@ -36,7 +36,7 @@
     "@toruslabs/eccrypto": "^8.0.0",
     "@toruslabs/loglevel-sentry": "^10.0.0",
     "@toruslabs/metadata-helpers": "^9.0.0",
-    "celebrate": "^15.0.3",
+    "celebrate": "^16.0.0",
     "cids": "^1.1.9",
     "compression": "^1.8.2",
     "cors": "^2.8.6",
