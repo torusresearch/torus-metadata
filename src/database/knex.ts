@@ -1,4 +1,4 @@
-import { knex } from "knex";
+import knex from "knex";
 import { attachOnDuplicateUpdate } from "knex-on-duplicate-update";
 
 import config from "./knexfile";

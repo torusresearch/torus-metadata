@@ -14,6 +14,12 @@ client.on("ready", () => {
   log.info("Connected to redis");
 });
 
+// The client must be explicitly connected for commands (get/setEx/del) to work.
+// Without this, all redis commands fail with "The client is closed".
+client.connect().catch((error) => {
+  log.error("redis connection failed", error);
+});
+
 export const redlock = new Redlock([new Client({ host: REDIS_HOSTNAME, port: Number(REDIS_PORT) })], {
   driftFactor: 0.01, // multiplied by lock ttl to determine drift time
   retryCount: 10,

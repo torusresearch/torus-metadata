@@ -1,7 +1,7 @@
 /* eslint-disable security/detect-object-injection */
 import { generatePrivate } from "@toruslabs/eccrypto";
+import { bytesToHex, hexToBytes, secp256k1, utf8ToBytes } from "@toruslabs/metadata-helpers";
 import { celebrate, Joi, Segments } from "celebrate";
-import { ec as EC } from "elliptic";
 import express, { Request, Response } from "express";
 import log from "loglevel";
 import multer from "multer";
@@ -10,6 +10,7 @@ import { getHashAndWriteAsync } from "../database/ipfs";
 import { knexRead, knexWrite } from "../database/knex";
 import redis, { redlock } from "../database/redis";
 import {
+  checkTorusNodeApiKey,
   serializeStreamBody,
   validateDataTimeStamp,
   validateGetOrSetNonceSetInput,
@@ -18,6 +19,7 @@ import {
   validateMetadataLoopInput,
   validateNamespace,
   validateNamespaceLoop,
+  validatePublicReadNamespace,
   validateSignature,
 } from "../middleware";
 import { constructKey, getError, MAX_BATCH_SIZE, REDIS_TIMEOUT } from "../utils";
@@ -27,16 +29,12 @@ const upload = multer({
   limits: { fieldSize: 30 * 1024 * 1024 },
 });
 
-const elliptic = new EC("secp256k1");
-
 const router = express.Router();
 
 const NAMESPACES = {
   nonceV2: "noncev2",
   pubNonceV2: "pub_noncev2",
 };
-
-const RESERVED_NAMESPACES = [NAMESPACES.nonceV2, NAMESPACES.pubNonceV2];
 
 const validateSetData = Joi.object({
   namespace: Joi.string().max(128),
@@ -57,13 +55,13 @@ router.post(
     {
       [Segments.BODY]: Joi.object({
         namespace: Joi.string().max(128),
-        pub_key_X: Joi.string().max(64).required(),
-        pub_key_Y: Joi.string().max(64).required(),
+        pub_key_X: Joi.string().max(64).hex().required(),
+        pub_key_Y: Joi.string().max(64).hex().required(),
       }),
     },
     { allowUnknown: true }
   ),
-  validateNamespace,
+  validatePublicReadNamespace,
   async (req: Request, res: Response) => {
     try {
       const {
@@ -75,7 +73,7 @@ router.post(
       const key = constructKey(pubKeyX, pubKeyY, namespace);
       let value: string;
       try {
-        value = await redis.get(key);
+        value = (await redis.get(key)) as string;
       } catch (error) {
         log.warn("redis get failed", error);
       }
@@ -99,7 +97,7 @@ router.post(
   celebrate({
     [Segments.BODY]: validateSetData,
   }),
-  validateNamespace,
+  validatePublicReadNamespace,
   validateDataTimeStamp,
   validateSignature,
   async (req: Request, res: Response) => {
@@ -111,11 +109,6 @@ router.post(
         set_data: { data },
         tableName = "",
       }: SetDataInput = req.body;
-
-      if (RESERVED_NAMESPACES.includes(namespace)) {
-        res.status(400).json({ error: `${namespace} namespace is a reserved namespace`, success: false });
-        return;
-      }
 
       const key = constructKey(pubKeyX, pubKeyY, namespace);
       await knexWrite(tableName).insert({
@@ -253,7 +246,7 @@ router.post(
         const sizeInCurrentTable = currentBatchSizePerTable[tableName];
         const latestBatchInCurrentTable = allBatchesInCurrentTable[allBatchesInCurrentTable.length - 1];
         // do checks
-        const currentDataLength = Buffer.byteLength(data);
+        const currentDataLength = utf8ToBytes(data).length;
         if (currentDataLength + sizeInCurrentTable <= MAX_BATCH_SIZE) {
           latestBatchInCurrentTable.push({ key, value: data });
           currentBatchSizePerTable[tableName] = currentDataLength + sizeInCurrentTable;
@@ -339,35 +332,37 @@ router.post(
   "/get_or_set_nonce",
   celebrate({
     [Segments.BODY]: Joi.object({
-      pub_key_X: Joi.string().max(64).required(),
-      pub_key_Y: Joi.string().max(64).required(),
-      namespace: Joi.string().max(128),
+      pub_key_X: Joi.string().max(64).hex().required(),
+      pub_key_Y: Joi.string().max(64).hex().required(),
+      key_type: Joi.string().allow(""),
+      // set_data fields are checked per request format in validateGetOrSetNonceSetInput
       set_data: Joi.object({
-        data: Joi.string(),
-        timestamp: Joi.string().hex(),
+        operation: Joi.string(),
+        data: Joi.string().allow(""),
+        timestamp: Joi.string().allow(""),
+        seed: Joi.string().allow(""),
       }),
       signature: Joi.string().max(88),
     }),
   }),
   validateGetOrSetNonceSetInput,
   validateGetOrSetNonceSignature,
+  checkTorusNodeApiKey,
   validateNamespace,
   async (req: Request, res: Response) => {
     try {
-      const {
-        pub_key_X: pubKeyX,
-        pub_key_Y: pubKeyY,
-        set_data: { data },
-        namespace: oldNamespace,
-        tableName,
-      }: SetDataInput = req.body;
+      const { pub_key_X: pubKeyX, pub_key_Y: pubKeyY, tableName }: SetDataInput = req.body;
+      const { operation, newNonce } = res.locals.nonceCommand as { operation: string; newNonce: string };
 
-      const oldKey = constructKey(pubKeyX, pubKeyY, oldNamespace);
+      // A v1 (legacy) nonce lives under the empty namespace in the "data" table, so probe with
+      // the no-namespace key. The route rejects any caller-supplied namespace, so tableName is
+      // always "data" here and this lookup can never resolve to a v2 nonce key.
+      const oldKey = constructKey(pubKeyX, pubKeyY);
 
       // check if it already exists
       let oldValue: string;
       try {
-        oldValue = await redis.get(oldKey);
+        oldValue = (await redis.get(oldKey)) as string;
       } catch (error) {
         log.warn("redis get failed", error);
       }
@@ -394,7 +389,7 @@ router.post(
       const getNonce = async (strongConsistency = false): Promise<string | undefined> => {
         let nonceVal: string;
         try {
-          nonceVal = await redis.get(key);
+          nonceVal = (await redis.get(key)) as string;
         } catch (error) {
           log.warn("redis get failed", error);
         }
@@ -409,7 +404,7 @@ router.post(
       const getPubNonce = async (strongConsistency = false): Promise<string | undefined> => {
         let pubNonceVal: string;
         try {
-          pubNonceVal = await redis.get(keyForPubNonce);
+          pubNonceVal = (await redis.get(keyForPubNonce)) as string;
         } catch (error) {
           log.warn("redis get failed", error);
         }
@@ -430,7 +425,7 @@ router.post(
 
       nonce = await getNonce(true);
 
-      if (nonce === "<v1>" || (!nonce && data !== "getOrSetNonce")) {
+      if (nonce === "<v1>" || (!nonce && operation !== "getOrSetNonce")) {
         res.json({ typeOfUser: "v1" });
         return;
       } // This is a v1 user who didn't have a nonce before we rolled out v2, if he sets his nonce in the future, this value will be ignored
@@ -458,13 +453,16 @@ router.post(
             pubNonce = await getPubNonce(true);
             gettingPubNonceTime = process.hrtime.bigint();
           } else {
-            // create new nonce
-            nonce = generatePrivate().toString("hex");
+            // create new nonce, or store the signed nonce of an imported key
+            nonce = newNonce ? newNonce.padStart(64, "0") : bytesToHex(generatePrivate());
 
-            const unformattedPubNonce = elliptic.keyFromPrivate(nonce).getPublic();
+            const unformattedPubNonce = secp256k1.getPublicKey(hexToBytes(nonce), false);
+            if (unformattedPubNonce.length !== 65) {
+              throw new Error(`expected 65-byte uncompressed public key, got ${unformattedPubNonce.length} bytes`);
+            }
             pubNonce = {
-              x: unformattedPubNonce.getX().toString("hex"),
-              y: unformattedPubNonce.getY().toString("hex"),
+              x: bytesToHex(unformattedPubNonce.slice(1, 33)),
+              y: bytesToHex(unformattedPubNonce.slice(33, 65)),
             };
 
             // We just created new nonce and pub nonce above, write to db
@@ -508,8 +506,8 @@ router.post(
         ipfs,
         nonce: undefined,
       } as { typeOfUser: "v1" | "v2"; upgraded: boolean; pubNonce: string | { x: string; y: string }; ipfs: string[]; nonce?: string };
-      if (!returnResponse.upgraded && !res.locals.noValidSig) {
-        // if account is 1/1 and there's a valid sig, return nonce
+      if (!returnResponse.upgraded && (!res.locals.noValidSig || res.locals.isTorusNode)) {
+        // if account is 1/1 and there's a valid sig or a torus node api key, return nonce
         returnResponse.nonce = nonce;
       }
       res.json(returnResponse);

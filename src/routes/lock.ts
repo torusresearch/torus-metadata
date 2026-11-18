@@ -30,7 +30,7 @@ router.post(
     try {
       let value: string;
       try {
-        value = await redis.get(pubKey);
+        value = (await redis.get(pubKey)) as string;
       } catch (error) {
         log.warn("redis get failed", error);
       }
@@ -74,7 +74,7 @@ router.post(
 
       let value: string;
       try {
-        value = await redis.get(key);
+        value = (await redis.get(key)) as string;
       } catch (error) {
         log.warn("redis get failed", error);
       }

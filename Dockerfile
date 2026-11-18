@@ -1,5 +1,5 @@
 # for build
-FROM node:22-alpine AS build
+FROM node:24-alpine AS build
 
 ENV NODE_OPTIONS --max-old-space-size=4096
 
@@ -19,7 +19,7 @@ COPY . .
 RUN npm run build 
 
 # for production
-FROM node:22-alpine
+FROM node:24-alpine
 
 ENV NODE_OPTIONS --max-old-space-size=4096
 

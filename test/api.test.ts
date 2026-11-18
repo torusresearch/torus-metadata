@@ -1,16 +1,22 @@
 /* eslint-disable import/no-extraneous-dependencies */
 /* eslint-disable n/no-extraneous-import */
-/* eslint-disable n/no-unsupported-features/node-builtins */
 import { getPubKeyECC } from "@tkey/common-types";
 import { TorusStorageLayer } from "@tkey/storage-layer-torus";
 import { encrypt, generatePrivate } from "@toruslabs/eccrypto";
-import { BN } from "bn.js";
+import { bytesToBigInt } from "@toruslabs/metadata-helpers";
+import { ec as EC } from "elliptic";
+import { keccak256 } from "js-sha3";
+import jsonStableStringify from "json-stable-stringify";
 import { stringify } from "querystring";
 import { assert, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 const port = 5051;
 const host = process.env.HOST || "localhost";
 const server = `http://${host}:${port}`;
+
+function encodeMessageBytes(message: Record<string, string>): Uint8Array {
+  return new TextEncoder().encode(stringify(message));
+}
 const randomID = () => `${Math.random().toString(36).substring(2, 9)}`;
 describe("API-calls", function () {
   describe("/default", function () {
@@ -28,11 +34,11 @@ describe("API-calls", function () {
   });
 
   describe("/set", function () {
-    let PRIVATE_KEY;
+    let PRIVATE_KEY: bigint;
     const storageLayer = new TorusStorageLayer({ hostUrl: server });
 
     beforeEach(function () {
-      PRIVATE_KEY = new BN(generatePrivate());
+      PRIVATE_KEY = bytesToBigInt(generatePrivate());
     });
 
     it("#it should reject if signature field is missing", async function () {
@@ -40,8 +46,8 @@ describe("API-calls", function () {
         test: Math.random().toString(36).substring(7),
       };
 
-      const bufferMetadata = Buffer.from(stringify(message));
-      const encryptedDetails = await encrypt(getPubKeyECC(PRIVATE_KEY), bufferMetadata);
+      const messageBytes = encodeMessageBytes(message);
+      const encryptedDetails = await encrypt(getPubKeyECC(PRIVATE_KEY), messageBytes);
       // @ts-expect-error testing
       const serializedEncryptedDetails = globalThis.btoa(stringify(encryptedDetails));
 
@@ -64,8 +70,8 @@ describe("API-calls", function () {
         test: Math.random().toString(36).substring(7),
       };
 
-      const bufferMetadata = Buffer.from(stringify(message));
-      const encryptedDetails = await encrypt(getPubKeyECC(PRIVATE_KEY), bufferMetadata);
+      const messageBytes = encodeMessageBytes(message);
+      const encryptedDetails = await encrypt(getPubKeyECC(PRIVATE_KEY), messageBytes);
       // @ts-expect-error testing
       const serializedEncryptedDetails = globalThis.btoa(stringify(encryptedDetails));
 
@@ -88,8 +94,8 @@ describe("API-calls", function () {
         test: Math.random().toString(36).substring(7),
       };
 
-      const bufferMetadata = Buffer.from(stringify(message));
-      const encryptedDetails = await encrypt(getPubKeyECC(PRIVATE_KEY), bufferMetadata);
+      const messageBytes = encodeMessageBytes(message);
+      const encryptedDetails = await encrypt(getPubKeyECC(PRIVATE_KEY), messageBytes);
       // @ts-expect-error testing
       const serializedEncryptedDetails = globalThis.btoa(stringify(encryptedDetails));
 
@@ -113,14 +119,14 @@ describe("API-calls", function () {
         test: Math.random().toString(36).substring(7),
       };
 
-      const bufferMetadata = Buffer.from(stringify(message));
-      const encryptedDetails = await encrypt(getPubKeyECC(PRIVATE_KEY), bufferMetadata);
+      const messageBytes = encodeMessageBytes(message);
+      const encryptedDetails = await encrypt(getPubKeyECC(PRIVATE_KEY), messageBytes);
       // @ts-expect-error testing
       const serializedEncryptedDetails = globalThis.btoa(stringify(encryptedDetails));
 
       const metadataParams = storageLayer.generateMetadataParams(serializedEncryptedDetails, undefined, PRIVATE_KEY);
       // @ts-expect-error testing
-      metadataParams.set_data.timestamp = new BN(~~(Date.now() / 1000) - 605).toString(16);
+      metadataParams.set_data.timestamp = (BigInt(Math.floor(Date.now() / 1000)) - 605n).toString(16);
       const res = await fetch(`${server}/set`, {
         method: "POST",
         headers: {
@@ -138,14 +144,14 @@ describe("API-calls", function () {
         test: Math.random().toString(36).substring(7),
       };
 
-      const bufferMetadata = Buffer.from(stringify(message));
-      const encryptedDetails = await encrypt(getPubKeyECC(PRIVATE_KEY), bufferMetadata);
+      const messageBytes = encodeMessageBytes(message);
+      const encryptedDetails = await encrypt(getPubKeyECC(PRIVATE_KEY), messageBytes);
       // @ts-expect-error testing
       const serializedEncryptedDetails = globalThis.btoa(stringify(encryptedDetails));
 
       const metadataParams = storageLayer.generateMetadataParams(serializedEncryptedDetails, undefined, PRIVATE_KEY);
       // @ts-expect-error testing
-      metadataParams.set_data.timestamp = new BN(~~(Date.now() / 1000) - 10).toString(16); // change timestamp, signature no longer valid
+      metadataParams.set_data.timestamp = (BigInt(Math.floor(Date.now() / 1000)) - 10n).toString(16); // change timestamp, signature no longer valid
       const res = await fetch(`${server}/set`, {
         method: "POST",
         headers: {
@@ -188,15 +194,15 @@ describe("API-calls", function () {
       privateKeys = [];
       for (let i = 0; i < 4; i += 1) {
         // @ts-expect-error testing
-        privateKeys.push(generatePrivate().toString("hex"));
+        privateKeys.push(bytesToBigInt(generatePrivate()));
       }
 
       finalMetadataParams = [];
       // @ts-expect-error testing
       finalMetadataParams = await Promise.all(
         messages.map(async (el, i) => {
-          const bufferMetadata = Buffer.from(stringify(el));
-          const encryptedDetails = await encrypt(getPubKeyECC(privateKeys[i]), bufferMetadata);
+          const messageBytes = encodeMessageBytes(el);
+          const encryptedDetails = await encrypt(getPubKeyECC(privateKeys[i]), messageBytes);
           // @ts-expect-error testing
           const serializedEncryptedDetails = globalThis.btoa(stringify(encryptedDetails));
           const metadataParams = storageLayer.generateMetadataParams(serializedEncryptedDetails, undefined, privateKeys[i]);
@@ -241,7 +247,7 @@ describe("API-calls", function () {
 
     it("#it should reject if one of the shares has an old timestamp", async function () {
       // @ts-expect-error testing
-      finalMetadataParams[0].set_data.timestamp = new BN(~~(Date.now() / 1000) - 605).toString(16);
+      finalMetadataParams[0].set_data.timestamp = (BigInt(Math.floor(Date.now() / 1000)) - 605n).toString(16);
       const FD = new FormData();
       finalMetadataParams.forEach((el, index) => {
         FD.append(index.toString(), JSON.stringify(el));
@@ -259,7 +265,7 @@ describe("API-calls", function () {
 
     it("#it should reject if one of the shares has an invalid signature", async function () {
       // @ts-expect-error testing
-      finalMetadataParams[0].set_data.timestamp = new BN(~~(Date.now() / 1000) - 10).toString(16);
+      finalMetadataParams[0].set_data.timestamp = (BigInt(Math.floor(Date.now() / 1000)) - 10n).toString(16);
       const FD = new FormData();
       finalMetadataParams.forEach((el, index) => {
         FD.append(index.toString(), JSON.stringify(el));
@@ -292,7 +298,7 @@ describe("API-calls", function () {
     let lockId;
 
     beforeAll(function () {
-      privKey = new BN(generatePrivate());
+      privKey = bytesToBigInt(generatePrivate());
     });
 
     it("#can release empty lock", async function () {
@@ -322,6 +328,364 @@ describe("API-calls", function () {
       expect(status).toBe(1);
       const { status: releaseStatus } = await storageLayer.releaseWriteLock({ id: randomID(), privKey });
       expect(releaseStatus).toBe(2);
+    });
+  });
+
+  describe("backward compat: old elliptic-signed payloads", function () {
+    const ec = new EC("secp256k1");
+
+    function createOldSetPayload(keyPair: EC.KeyPair, data: string) {
+      const pub = keyPair.getPublic();
+      const pubKeyX = pub.getX().toString("hex", 32);
+      const pubKeyY = pub.getY().toString("hex", 32);
+
+      const timestamp = Math.floor(Date.now() / 1000).toString(16);
+      const setData = { data, timestamp };
+
+      const hash = keccak256(jsonStableStringify(setData) as string);
+      const sig = ec.sign(hash, keyPair, "hex", { canonical: false });
+
+      const r = sig.r.toArrayLike(Buffer, "be", 32);
+      const s = sig.s.toArrayLike(Buffer, "be", 32);
+      const ethSig = Buffer.concat([r, s, Buffer.from([sig.recoveryParam || 0])]);
+
+      const signatureBase64 = ethSig.toString("base64");
+
+      return { pub_key_X: pubKeyX, pub_key_Y: pubKeyY, set_data: setData, signature: signatureBase64 };
+    }
+
+    function createOldLockPayload(keyPair: EC.KeyPair) {
+      const pubKeyHex = keyPair.getPublic(false, "hex");
+
+      const timestamp = Math.floor(Date.now() / 1000);
+      const data = { timestamp };
+
+      const hash = keccak256(jsonStableStringify(data) as string);
+      const sig = ec.sign(hash, keyPair, "hex", { canonical: false });
+      const signatureHex = sig.toDER("hex");
+
+      return { key: pubKeyHex, data, signature: signatureHex };
+    }
+
+    it("#should set/get metadata with old elliptic-signed compact signature", async function () {
+      const keyPair = ec.genKeyPair();
+      const payload = createOldSetPayload(keyPair, "old-client-data");
+
+      const setRes = await fetch(`${server}/set`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      expect(setRes.status).toBe(200);
+
+      const getRes = await fetch(`${server}/get`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pub_key_X: payload.pub_key_X, pub_key_Y: payload.pub_key_Y }),
+      });
+      expect(getRes.status).toBe(200);
+      const getData = (await getRes.json()) as { message: string };
+      expect(getData.message).toBe("old-client-data");
+    });
+
+    it("#should bulk_set_stream with old elliptic-signed compact signatures", async function () {
+      const keyPair1 = ec.genKeyPair();
+      const keyPair2 = ec.genKeyPair();
+      const payload1 = createOldSetPayload(keyPair1, "bulk-old-1");
+      const payload2 = createOldSetPayload(keyPair2, "bulk-old-2");
+
+      const FD = new FormData();
+      FD.append("0", JSON.stringify(payload1));
+      FD.append("1", JSON.stringify(payload2));
+
+      const setRes = await fetch(`${server}/bulk_set_stream`, {
+        method: "POST",
+        body: FD,
+      });
+      expect(setRes.status).toBe(200);
+
+      const getRes1 = await fetch(`${server}/get`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pub_key_X: payload1.pub_key_X, pub_key_Y: payload1.pub_key_Y }),
+      });
+      expect(getRes1.status).toBe(200);
+      const data1 = (await getRes1.json()) as { message: string };
+      expect(data1.message).toBe("bulk-old-1");
+
+      const getRes2 = await fetch(`${server}/get`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pub_key_X: payload2.pub_key_X, pub_key_Y: payload2.pub_key_Y }),
+      });
+      expect(getRes2.status).toBe(200);
+      const data2 = (await getRes2.json()) as { message: string };
+      expect(data2.message).toBe("bulk-old-2");
+    });
+
+    it("#should acquire/release lock with old elliptic DER-signed payload", async function () {
+      const keyPair = ec.genKeyPair();
+
+      const acquirePayload = createOldLockPayload(keyPair);
+      const acquireRes = await fetch(`${server}/acquireLock`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(acquirePayload),
+      });
+      expect(acquireRes.status).toBe(200);
+      const acquireData = (await acquireRes.json()) as { status: number; id: string };
+      expect(acquireData.status).toBe(1);
+      expect(acquireData.id).toBeDefined();
+
+      const releasePayload = createOldLockPayload(keyPair);
+      const releaseRes = await fetch(`${server}/releaseLock`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...releasePayload, id: acquireData.id }),
+      });
+      expect(releaseRes.status).toBe(200);
+      const releaseData = (await releaseRes.json()) as { status: number };
+      expect(releaseData.status).toBe(1);
+    });
+
+    it("#should set/get metadata when pubkey coordinate has leading zero bytes (padding)", async function () {
+      // Private key 0x7a produces pubKeyY with 62 hex chars (top byte 0x00 fully stripped).
+      // Old elliptic clients using getX/getY().toString("hex") would send unpadded coords.
+      // With even-length < 64, hexToBytes produces 31 bytes instead of 32, causing
+      // coordsToPublicKey to misalign the public key and fail signature verification.
+      const keyPair = ec.keyFromPrivate("000000000000000000000000000000000000000000000000000000000000007a");
+      const pub = keyPair.getPublic();
+      const pubKeyX = pub.getX().toString("hex");
+      const pubKeyY = pub.getY().toString("hex"); // 62 hex chars — top byte 0x00 stripped
+      expect(pubKeyY.length).toBe(62);
+
+      const timestamp = Math.floor(Date.now() / 1000).toString(16);
+      const setData = { data: "padding-test", timestamp };
+
+      const hash = keccak256(jsonStableStringify(setData) as string);
+      const sig = ec.sign(hash, keyPair, "hex", { canonical: false });
+
+      const r = sig.r.toArrayLike(Buffer, "be", 32);
+      const s = sig.s.toArrayLike(Buffer, "be", 32);
+      const ethSig = Buffer.concat([r, s, Buffer.from([sig.recoveryParam || 0])]);
+      const signatureBase64 = ethSig.toString("base64");
+
+      const setRes = await fetch(`${server}/set`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pub_key_X: pubKeyX, pub_key_Y: pubKeyY, set_data: setData, signature: signatureBase64 }),
+      });
+      expect(setRes.status).toBe(200);
+
+      const getRes = await fetch(`${server}/get`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pub_key_X: pubKeyX, pub_key_Y: pubKeyY }),
+      });
+      expect(getRes.status).toBe(200);
+      const getData = (await getRes.json()) as { message: string };
+      expect(getData.message).toBe("padding-test");
+    });
+
+    it("#should get_or_set_nonce with old elliptic-signed payload", async function () {
+      const keyPair = ec.genKeyPair();
+      const pub = keyPair.getPublic();
+      const pubKeyX = pub.getX().toString("hex", 32);
+      const pubKeyY = pub.getY().toString("hex", 32);
+
+      const timestamp = Math.floor(Date.now() / 1000).toString(16);
+      const setData = { data: "getOrSetNonce", timestamp };
+
+      const hash = keccak256(jsonStableStringify(setData) as string);
+      const sig = ec.sign(hash, keyPair, "hex", { canonical: false });
+
+      const r = sig.r.toArrayLike(Buffer, "be", 32);
+      const s = sig.s.toArrayLike(Buffer, "be", 32);
+      const ethSig = Buffer.concat([r, s, Buffer.from([sig.recoveryParam || 0])]);
+
+      const signatureBase64 = ethSig.toString("base64");
+
+      const res = await fetch(`${server}/get_or_set_nonce`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pub_key_X: pubKeyX,
+          pub_key_Y: pubKeyY,
+          set_data: setData,
+          signature: signatureBase64,
+        }),
+      });
+      expect(res.status).toBe(200);
+      const data = (await res.json()) as { typeOfUser: string; pubNonce: { x: string; y: string } };
+      expect(data.typeOfUser).toBe("v2");
+      expect(data.pubNonce).toBeDefined();
+      expect(data.pubNonce.x).toBeDefined();
+      expect(data.pubNonce.y).toBeDefined();
+    });
+  });
+
+  describe("namespace isolation", function () {
+    const ec = new EC("secp256k1");
+
+    function createSetPayload(keyPair: EC.KeyPair, data: string) {
+      const pub = keyPair.getPublic();
+      const pubKeyX = pub.getX().toString("hex", 32);
+      const pubKeyY = pub.getY().toString("hex", 32);
+
+      const timestamp = Math.floor(Date.now() / 1000).toString(16);
+      const setData = { data, timestamp };
+
+      const hash = keccak256(jsonStableStringify(setData) as string);
+      const sig = ec.sign(hash, keyPair, "hex", { canonical: false });
+
+      const r = sig.r.toArrayLike(Buffer, "be", 32);
+      const s = sig.s.toArrayLike(Buffer, "be", 32);
+      const ethSig = Buffer.concat([r, s, Buffer.from([sig.recoveryParam || 0])]);
+
+      return { pub_key_X: pubKeyX, pub_key_Y: pubKeyY, set_data: setData, signature: ethSig.toString("base64") };
+    }
+
+    it("#/get should reject a pub_key_Y that smuggles a noncev2 key via \\x1c", async function () {
+      const keyPair = ec.genKeyPair();
+      const pubKeyX = keyPair.getPublic().getX().toString("hex", 32);
+      const pubKeyY = keyPair.getPublic().getY().toString("hex", 32);
+
+      const res = await fetch(`${server}/get`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // constructKey joins with \x1c, so "<Y>\x1cnoncev2" would build the noncev2 key.
+        // .hex() on pub_key_Y must reject the non-hex control byte before any lookup.
+        body: JSON.stringify({ pub_key_X: pubKeyX, pub_key_Y: `${pubKeyY}\u001cnoncev2` }),
+      });
+      expect(res.status).toBe(400);
+    });
+
+    it("#/get_or_set_nonce should reject a caller-supplied namespace", async function () {
+      const keyPair = ec.genKeyPair();
+      const pubKeyX = keyPair.getPublic().getX().toString("hex", 32);
+      const pubKeyY = keyPair.getPublic().getY().toString("hex", 32);
+
+      const res = await fetch(`${server}/get_or_set_nonce`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pub_key_X: pubKeyX, pub_key_Y: pubKeyY, namespace: "tkey" }),
+      });
+      // namespace is no longer an allowed key, so celebrate rejects it before any lookup.
+      expect(res.status).toBe(400);
+    });
+
+    it("#/set should reject an unknown namespace", async function () {
+      const payload = createSetPayload(ec.genKeyPair(), "ns-test");
+
+      const res = await fetch(`${server}/set`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...payload, namespace: "foo" }),
+      });
+      expect(res.status).toBe(403);
+    });
+
+    it("#/bulk_set should reject a share with an unknown namespace", async function () {
+      const payload = createSetPayload(ec.genKeyPair(), "bulk-ns-test");
+
+      const res = await fetch(`${server}/bulk_set`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shares: [{ ...payload, namespace: "foo" }] }),
+      });
+      expect(res.status).toBe(403);
+    });
+
+    it("#/bulk_set should allow a noncev2 share (OneKey -> tKey delete)", async function () {
+      // The tKey SDK deletes the v2 nonce by bulk-writing noncev2 = "<deleted>" during the
+      // OneKey -> tKey upgrade, so the write-namespace guard must let noncev2 through.
+      const payload = createSetPayload(ec.genKeyPair(), "<deleted>");
+
+      const res = await fetch(`${server}/bulk_set`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shares: [{ ...payload, namespace: "noncev2" }] }),
+      });
+      expect(res.status).toBe(200);
+    });
+  });
+
+  describe("/get_or_set_nonce current format", function () {
+    const ec = new EC("secp256k1");
+    const nodeApiKey = process.env.TORUS_NODE_API_KEY || "torus-node-dev-key";
+    type NonceResponse = { typeOfUser: string; nonce?: string; pubNonce: { x: string; y: string } };
+
+    function signSetData(keyPair: EC.KeyPair, setData: Record<string, string>) {
+      const sig = ec.sign(keccak256(jsonStableStringify(setData) as string), keyPair, "hex", { canonical: false });
+      const ethSig = Buffer.concat([sig.r.toArrayLike(Buffer, "be", 32), sig.s.toArrayLike(Buffer, "be", 32), Buffer.from([sig.recoveryParam || 0])]);
+      return ethSig.toString("base64");
+    }
+
+    const pubKeyOf = (keyPair: EC.KeyPair) => ({
+      pub_key_X: keyPair.getPublic().getX().toString("hex", 32),
+      pub_key_Y: keyPair.getPublic().getY().toString("hex", 32),
+    });
+
+    const nodeHeaders = { "x-web3-api-key": nodeApiKey };
+    const postNonce = (body: Record<string, unknown>, headers: Record<string, string> = nodeHeaders) =>
+      fetch(`${server}/get_or_set_nonce`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...headers },
+        body: JSON.stringify(body),
+      });
+
+    const unsignedLookup = (operation: string) => ({ operation, data: "", seed: "", timestamp: "" });
+
+    it("#should store the signed nonce of an imported key and let torus nodes read it", async function () {
+      const keyPair = ec.genKeyPair();
+      const nonce = ec.genKeyPair().getPrivate().toString("hex", 32);
+      const setData = { operation: "getOrSetNonce", data: nonce, seed: "", timestamp: Math.floor(Date.now() / 1000).toString(16) };
+
+      const setRes = await postNonce({ ...pubKeyOf(keyPair), key_type: "secp256k1", set_data: setData, signature: signSetData(keyPair, setData) });
+      expect(setRes.status).toBe(200);
+      const setBody = (await setRes.json()) as NonceResponse;
+      const expectedPubNonce = ec.keyFromPrivate(nonce).getPublic();
+      expect(setBody).toMatchObject({ typeOfUser: "v2", nonce, pubNonce: { x: expectedPubNonce.getX().toString("hex", 32) } });
+
+      const nodeBody = (await (
+        await postNonce({ ...pubKeyOf(keyPair), key_type: "secp256k1", set_data: unsignedLookup("getNonce") })
+      ).json()) as NonceResponse;
+      expect(nodeBody.nonce).toBe(nonce);
+    });
+
+    it("#should reject the current format from callers that are not torus nodes", async function () {
+      const body = { ...pubKeyOf(ec.genKeyPair()), set_data: unsignedLookup("getOrSetNonce") };
+      expect((await postNonce(body, {})).status).toBe(403);
+      expect((await postNonce(body, { "x-web3-api-key": `${nodeApiKey}x` })).status).toBe(403);
+    });
+
+    it("#should let a torus node create a nonce for a new user", async function () {
+      const res = await postNonce({ ...pubKeyOf(ec.genKeyPair()), key_type: "secp256k1", set_data: unsignedLookup("getOrSetNonce") });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as NonceResponse;
+      expect(body.typeOfUser).toBe("v2");
+      expect(body.nonce).toMatch(/^[0-9a-f]{64}$/);
+    });
+
+    it("#should reject an unsigned request that carries a nonce", async function () {
+      const nonce = ec.genKeyPair().getPrivate().toString("hex", 32);
+      const res = await postNonce({ ...pubKeyOf(ec.genKeyPair()), set_data: { operation: "getOrSetNonce", data: nonce, seed: "", timestamp: "" } });
+      expect(res.status).toBe(400);
+    });
+
+    it("#should reject a legacy {data,timestamp} signature replayed with an operation", async function () {
+      const keyPair = ec.genKeyPair();
+      const nonce = ec.genKeyPair().getPrivate().toString("hex", 32);
+      const timestamp = Math.floor(Date.now() / 1000).toString(16);
+      const signature = signSetData(keyPair, { data: nonce, timestamp });
+
+      const res = await postNonce({ ...pubKeyOf(keyPair), set_data: { operation: "getOrSetNonce", data: nonce, timestamp }, signature });
+      expect(res.status).toBe(403);
+    });
+
+    it("#should reject non-secp256k1 key types", async function () {
+      const res = await postNonce({ ...pubKeyOf(ec.genKeyPair()), key_type: "ed25519", set_data: unsignedLookup("getNonce") });
+      expect(res.status).toBe(400);
     });
   });
 });

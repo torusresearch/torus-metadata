@@ -7,6 +7,6 @@ export default defineConfig({
     pool: "forks",
     environment: "node",
     setupFiles: ["dotenv/config"],
-    include: ["test/api.test.ts"],
+    include: ["test/api.test.ts", "test/redactSentry.test.ts"],
   },
 });
