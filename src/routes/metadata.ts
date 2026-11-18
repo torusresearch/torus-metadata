@@ -120,7 +120,7 @@ router.post(
         log.warn("redis set failed", error);
       }
 
-      const ipfsResult = await getHashAndWriteAsync({ [tableName]: [{ key, value: data }] });
+      const ipfsResult = await getHashAndWriteAsync([[{ key, value: data }]]);
       res.json({ message: ipfsResult });
       return;
     } catch (error) {
@@ -184,7 +184,7 @@ router.post(
         log.warn("redis bulk set failed", error);
       }
 
-      const ipfsResult = await getHashAndWriteAsync(requiredData);
+      const ipfsResult = await getHashAndWriteAsync(Object.values(requiredData));
       res.json({ message: ipfsResult });
       return;
     } catch (error) {
@@ -224,8 +224,8 @@ router.post(
       const { shares }: { shares: (SetDataInput & { tableName: DBTableName })[] } = req.body;
 
       const redisData: Record<string, string> = {};
-      const totalBatchesPerTable: Record<string, DataInsertType[][]> = {}; // Key table name, value array of batch data (max 60MB)
-      const currentBatchSizePerTable: Partial<Record<DBTableName, number>> = {}; // Key table name, value size of current batch
+      const totalBatchesPerTable = new Map<DBTableName, DataInsertType[][]>(); // Key table name, value array of batch data (max 60MB)
+      const currentBatchSizePerTable = new Map<DBTableName, number>(); // Key table name, value size of current batch
       for (const share of shares) {
         const {
           namespace,
@@ -237,24 +237,28 @@ router.post(
         const key = constructKey(pubKeyX, pubKeyY, namespace);
         redisData[key] = data;
         // Initialize
-        const allBatchesInCurrentTable = (totalBatchesPerTable[tableName] ||= [[{ key, value: data }]]);
-        const sizeInCurrentTable = (currentBatchSizePerTable[tableName] ||= 0);
+        let allBatchesInCurrentTable = totalBatchesPerTable.get(tableName);
+        if (!allBatchesInCurrentTable) {
+          allBatchesInCurrentTable = [[{ key, value: data }]];
+          totalBatchesPerTable.set(tableName, allBatchesInCurrentTable);
+        }
+        const sizeInCurrentTable = currentBatchSizePerTable.get(tableName) ?? 0;
         // the last batch always exists, because the table starts with one batch
         const latestBatchInCurrentTable = allBatchesInCurrentTable[allBatchesInCurrentTable.length - 1] as DataInsertType[];
         // do checks
         const currentDataLength = utf8ToBytes(data).length;
         if (currentDataLength + sizeInCurrentTable <= MAX_BATCH_SIZE) {
           latestBatchInCurrentTable.push({ key, value: data });
-          currentBatchSizePerTable[tableName] = currentDataLength + sizeInCurrentTable;
+          currentBatchSizePerTable.set(tableName, currentDataLength + sizeInCurrentTable);
         } else {
           // create new batch
           allBatchesInCurrentTable.push([{ key, value: data }]);
           // reset values
-          currentBatchSizePerTable[tableName] = currentDataLength;
+          currentBatchSizePerTable.set(tableName, currentDataLength);
         }
       }
 
-      await Promise.all(Object.entries(totalBatchesPerTable).map(([x, batches]) => insertDataInBatchForTable(x as DBTableName, batches)));
+      await Promise.all([...totalBatchesPerTable].map(([x, batches]) => insertDataInBatchForTable(x, batches)));
 
       try {
         await Promise.all(Object.entries(redisData).map(([x, value]) => redis.setEx(x, REDIS_TIMEOUT, value)));
@@ -262,15 +266,7 @@ router.post(
         log.warn("redis bulk set failed", error);
       }
 
-      const requiredData = Object.entries(totalBatchesPerTable).reduce(
-        (acc: Record<DBTableName, DataInsertType[]>, [x, batch]) => {
-          acc[x as DBTableName] = batch.flatMap((y) => y);
-          return acc;
-        },
-        {} as Record<DBTableName, DataInsertType[]>
-      );
-
-      const ipfsResult = await getHashAndWriteAsync(requiredData);
+      const ipfsResult = await getHashAndWriteAsync([...totalBatchesPerTable.values()].map((batches) => batches.flat()));
       res.json({ message: ipfsResult });
       return;
     } catch (error) {
@@ -467,7 +463,7 @@ router.post(
             ]);
             insertingTime = process.hrtime.bigint();
             [ipfs] = await Promise.all([
-              getHashAndWriteAsync({ [tableName]: [{ key, value: pubNonceStr }] }),
+              getHashAndWriteAsync([[{ key, value: pubNonceStr }]]),
               redis.setEx(key, REDIS_TIMEOUT, nonce).catch((error) => log.warn("redis set failed", error)),
               redis.setEx(keyForPubNonce, REDIS_TIMEOUT, pubNonceStr).catch((error) => log.warn("redis set failed", error)),
             ]);
