@@ -1,4 +1,3 @@
-/* eslint-disable security/detect-object-injection */
 import { generatePrivate } from "@toruslabs/eccrypto";
 import { bytesToHex, hexToBytes, secp256k1, utf8ToBytes } from "@toruslabs/metadata-helpers";
 import { celebrate, Joi, Segments } from "celebrate";
@@ -71,7 +70,7 @@ router.post(
         tableName = "",
       }: { namespace?: string; pub_key_X: string; pub_key_Y: string; tableName?: DBTableName } = req.body;
       const key = constructKey(pubKeyX, pubKeyY, namespace);
-      let value: string;
+      let value: string | undefined;
       try {
         value = (await redis.get(key)) as string;
       } catch (error) {
@@ -122,7 +121,7 @@ router.post(
         log.warn("redis set failed", error);
       }
 
-      const ipfsResult = await getHashAndWriteAsync({ [tableName]: [{ key, value: data }] });
+      const ipfsResult = await getHashAndWriteAsync([[{ key, value: data }]]);
       res.json({ message: ipfsResult });
       return;
     } catch (error) {
@@ -155,8 +154,8 @@ router.post(
             set_data: { data },
             tableName,
           } = x;
-          if (acc[tableName as keyof DBTableName])
-            acc[tableName as keyof DBTableName].push({ key: constructKey(pubKeyX, pubKeyY, namespace), value: data });
+          const tableData = acc[tableName as keyof DBTableName];
+          if (tableData) tableData.push({ key: constructKey(pubKeyX, pubKeyY, namespace), value: data });
           else acc[tableName as keyof DBTableName] = [{ key: constructKey(pubKeyX, pubKeyY, namespace), value: data }];
           return acc;
         },
@@ -181,12 +180,12 @@ router.post(
       );
 
       try {
-        await Promise.all(Object.keys(redisData).map((x) => redis.setEx(x, REDIS_TIMEOUT, redisData[x])));
+        await Promise.all(Object.entries(redisData).map(([x, value]) => redis.setEx(x, REDIS_TIMEOUT, value)));
       } catch (error) {
         log.warn("redis bulk set failed", error);
       }
 
-      const ipfsResult = await getHashAndWriteAsync(requiredData);
+      const ipfsResult = await getHashAndWriteAsync(Object.values(requiredData));
       res.json({ message: ipfsResult });
       return;
     } catch (error) {
@@ -223,11 +222,11 @@ router.post(
   validateNamespaceLoop("shares"),
   async (req, res) => {
     try {
-      const { shares }: { shares: SetDataInput[] } = req.body;
+      const { shares }: { shares: (SetDataInput & { tableName: DBTableName })[] } = req.body;
 
       const redisData: Record<string, string> = {};
-      const totalBatchesPerTable: Partial<Record<DBTableName, DataInsertType[][]>> = {}; // Key table name, value array of batch data (max 60MB)
-      const currentBatchSizePerTable: Partial<Record<DBTableName, number>> = {}; // Key table name, value size of current batch
+      const totalBatchesPerTable = new Map<DBTableName, DataInsertType[][]>(); // Key table name, value array of batch data (max 60MB)
+      const currentBatchSizePerTable = new Map<DBTableName, number>(); // Key table name, value size of current batch
       for (const share of shares) {
         const {
           namespace,
@@ -239,45 +238,36 @@ router.post(
         const key = constructKey(pubKeyX, pubKeyY, namespace);
         redisData[key] = data;
         // Initialize
-        totalBatchesPerTable[tableName] = totalBatchesPerTable[tableName] || [[{ key, value: data }]];
-        currentBatchSizePerTable[tableName] = currentBatchSizePerTable[tableName] || 0;
-        // get current values
-        const allBatchesInCurrentTable = totalBatchesPerTable[tableName];
-        const sizeInCurrentTable = currentBatchSizePerTable[tableName];
-        const latestBatchInCurrentTable = allBatchesInCurrentTable[allBatchesInCurrentTable.length - 1];
+        let allBatchesInCurrentTable = totalBatchesPerTable.get(tableName);
+        if (!allBatchesInCurrentTable) {
+          allBatchesInCurrentTable = [[{ key, value: data }]];
+          totalBatchesPerTable.set(tableName, allBatchesInCurrentTable);
+        }
+        const sizeInCurrentTable = currentBatchSizePerTable.get(tableName) ?? 0;
+        // the last batch always exists, because the table starts with one batch
+        const latestBatchInCurrentTable = allBatchesInCurrentTable[allBatchesInCurrentTable.length - 1] as DataInsertType[];
         // do checks
         const currentDataLength = utf8ToBytes(data).length;
         if (currentDataLength + sizeInCurrentTable <= MAX_BATCH_SIZE) {
           latestBatchInCurrentTable.push({ key, value: data });
-          currentBatchSizePerTable[tableName] = currentDataLength + sizeInCurrentTable;
+          currentBatchSizePerTable.set(tableName, currentDataLength + sizeInCurrentTable);
         } else {
           // create new batch
           allBatchesInCurrentTable.push([{ key, value: data }]);
           // reset values
-          currentBatchSizePerTable[tableName] = currentDataLength;
+          currentBatchSizePerTable.set(tableName, currentDataLength);
         }
       }
 
-      await Promise.all(
-        Object.keys(totalBatchesPerTable).map((x) => insertDataInBatchForTable(x as DBTableName, totalBatchesPerTable[x as DBTableName]))
-      );
+      await Promise.all([...totalBatchesPerTable].map(([x, batches]) => insertDataInBatchForTable(x, batches)));
 
       try {
-        await Promise.all(Object.keys(redisData).map((x) => redis.setEx(x, REDIS_TIMEOUT, redisData[x])));
+        await Promise.all(Object.entries(redisData).map(([x, value]) => redis.setEx(x, REDIS_TIMEOUT, value)));
       } catch (error) {
         log.warn("redis bulk set failed", error);
       }
 
-      const requiredData = Object.keys(totalBatchesPerTable).reduce(
-        (acc: Record<DBTableName, DataInsertType[]>, x) => {
-          const batch = totalBatchesPerTable[x as DBTableName];
-          acc[x as DBTableName] = batch.flatMap((y) => y);
-          return acc;
-        },
-        {} as Record<DBTableName, DataInsertType[]>
-      );
-
-      const ipfsResult = await getHashAndWriteAsync(requiredData);
+      const ipfsResult = await getHashAndWriteAsync([...totalBatchesPerTable.values()].map((batches) => batches.flat()));
       res.json({ message: ipfsResult });
       return;
     } catch (error) {
@@ -351,7 +341,7 @@ router.post(
   validateNamespace,
   async (req: Request, res: Response) => {
     try {
-      const { pub_key_X: pubKeyX, pub_key_Y: pubKeyY, tableName }: SetDataInput = req.body;
+      const { pub_key_X: pubKeyX, pub_key_Y: pubKeyY, tableName }: SetDataInput & { tableName: DBTableName } = req.body;
       const { operation, newNonce } = res.locals.nonceCommand as { operation: string; newNonce: string };
 
       // A v1 (legacy) nonce lives under the empty namespace in the "data" table, so probe with
@@ -360,7 +350,7 @@ router.post(
       const oldKey = constructKey(pubKeyX, pubKeyY);
 
       // check if it already exists
-      let oldValue: string;
+      let oldValue: string | undefined;
       try {
         oldValue = (await redis.get(oldKey)) as string;
       } catch (error) {
@@ -382,12 +372,12 @@ router.post(
       const keyForPubNonce = constructKey(pubKeyX, pubKeyY, NAMESPACES.pubNonceV2);
 
       // if not check if v2 has been created before
-      let nonce: string;
-      let pubNonce: string | { x: string; y: string };
-      let ipfs: string[];
+      let nonce: string | undefined;
+      let pubNonce: string | { x: string; y: string } | undefined;
+      let ipfs: string[] | undefined;
 
       const getNonce = async (strongConsistency = false): Promise<string | undefined> => {
-        let nonceVal: string;
+        let nonceVal: string | undefined;
         try {
           nonceVal = (await redis.get(key)) as string;
         } catch (error) {
@@ -402,7 +392,7 @@ router.post(
       };
 
       const getPubNonce = async (strongConsistency = false): Promise<string | undefined> => {
-        let pubNonceVal: string;
+        let pubNonceVal: string | undefined;
         try {
           pubNonceVal = (await redis.get(keyForPubNonce)) as string;
         } catch (error) {
@@ -475,7 +465,7 @@ router.post(
             ]);
             insertingTime = process.hrtime.bigint();
             [ipfs] = await Promise.all([
-              getHashAndWriteAsync({ [tableName]: [{ key, value: pubNonceStr }] }),
+              getHashAndWriteAsync([[{ key, value: pubNonceStr }]]),
               redis.setEx(key, REDIS_TIMEOUT, nonce).catch((error) => log.warn("redis set failed", error)),
               redis.setEx(keyForPubNonce, REDIS_TIMEOUT, pubNonceStr).catch((error) => log.warn("redis set failed", error)),
             ]);

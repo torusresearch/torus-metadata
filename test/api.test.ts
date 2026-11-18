@@ -1,5 +1,5 @@
-/* eslint-disable import/no-extraneous-dependencies */
-/* eslint-disable n/no-extraneous-import */
+import { stringify } from "querystring";
+
 import { getPubKeyECC } from "@tkey/common-types";
 import { TorusStorageLayer } from "@tkey/storage-layer-torus";
 import { encrypt, generatePrivate } from "@toruslabs/eccrypto";
@@ -7,8 +7,7 @@ import { bytesToBigInt } from "@toruslabs/metadata-helpers";
 import { ec as EC } from "elliptic";
 import { keccak256 } from "js-sha3";
 import jsonStableStringify from "json-stable-stringify";
-import { stringify } from "querystring";
-import { assert, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { assert, beforeAll, beforeEach, describe, expect, it } from "vite-plus/test";
 
 const port = 5051;
 const host = process.env.HOST || "localhost";
@@ -178,14 +177,13 @@ describe("API-calls", function () {
 
   describe("/bulk_set_stream", function () {
     const storageLayer = new TorusStorageLayer({ hostUrl: server });
-    let messages = [];
-    let privateKeys = [];
-    let finalMetadataParams = [];
+    let messages: { test: string }[] = [];
+    let privateKeys: bigint[] = [];
+    let finalMetadataParams: Awaited<ReturnType<TorusStorageLayer["generateMetadataParams"]>>[] = [];
 
     beforeEach(async function () {
       messages = [];
       for (let i = 0; i < 4; i += 1) {
-        // @ts-expect-error testing
         messages.push({
           test: Math.random().toString(36).substring(7),
         });
@@ -193,12 +191,10 @@ describe("API-calls", function () {
 
       privateKeys = [];
       for (let i = 0; i < 4; i += 1) {
-        // @ts-expect-error testing
         privateKeys.push(bytesToBigInt(generatePrivate()));
       }
 
       finalMetadataParams = [];
-      // @ts-expect-error testing
       finalMetadataParams = await Promise.all(
         messages.map(async (el, i) => {
           const messageBytes = encodeMessageBytes(el);
@@ -228,7 +224,6 @@ describe("API-calls", function () {
     });
 
     it("#it should reject if one of the shares has missing pubkey", async function () {
-      // @ts-expect-error testing
       finalMetadataParams[0].pub_key_X = "";
       const FD = new FormData();
       finalMetadataParams.forEach((el, index) => {
@@ -294,8 +289,8 @@ describe("API-calls", function () {
   describe("/lock", function () {
     const storageLayer = new TorusStorageLayer({ hostUrl: server });
 
-    let privKey;
-    let lockId;
+    let privKey: bigint;
+    let lockId: string;
 
     beforeAll(function () {
       privKey = bytesToBigInt(generatePrivate());
@@ -310,7 +305,7 @@ describe("API-calls", function () {
       const { id, status } = await storageLayer.acquireWriteLock({ privKey });
       expect(status).toBe(1);
       expect(id).toBeDefined();
-      lockId = id;
+      lockId = id as string;
     });
 
     it("#it should not re acquire lock correctly", async function () {

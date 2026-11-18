@@ -1,4 +1,6 @@
 import "./utils/sentry";
+import { createServer } from "http";
+import path from "path";
 
 import * as Sentry from "@sentry/node";
 import { errors } from "celebrate";
@@ -7,10 +9,8 @@ import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
 import helmet from "helmet";
-import { createServer } from "http";
 import log from "loglevel";
 import morgan from "morgan";
-import path from "path";
 
 log.setLevel((process.env.LOG_LEVEL as log.LogLevelDesc) || log.levels.INFO);
 

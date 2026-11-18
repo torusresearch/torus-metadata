@@ -1,7 +1,7 @@
-/* eslint-disable security/detect-object-injection */
+import { timingSafeEqual } from "crypto";
+
 import { secp256k1 } from "@toruslabs/metadata-helpers";
 import { Joi } from "celebrate";
-import { timingSafeEqual } from "crypto";
 import { NextFunction, Request, Response } from "express";
 import log from "loglevel";
 
@@ -23,7 +23,7 @@ export const validateDataTimeStamp = async (req: Request, res: Response, next: N
 
 export const validateMetadataLoopInput = (key: string) => (req: Request, res: Response, next: NextFunction) => {
   const paramsObject: { [key: string]: SetDataInput[] } = req.body;
-  const mainParamToTest = paramsObject[key];
+  const mainParamToTest = paramsObject[key] as SetDataInput[];
   for (const [index, param] of mainParamToTest.entries()) {
     const { set_data: setData } = param;
     const { timestamp } = setData;
@@ -59,7 +59,7 @@ export const validateSignature = async (req: Request, res: Response, next: NextF
 
 export const validateLoopSignature = (key: string) => (req: Request, res: Response, next: NextFunction) => {
   const paramsObject: { [key: string]: SetDataInput[] } = req.body;
-  const mainParamToTest = paramsObject[key];
+  const mainParamToTest = paramsObject[key] as SetDataInput[];
   for (const [index, param] of mainParamToTest.entries()) {
     try {
       const isValid = isValidSignature(param);
@@ -118,7 +118,7 @@ export const validatePublicReadNamespace = (req: Request, res: Response, next: N
 
 export const validateNamespaceLoop = (key: string) => (req: Request, res: Response, next: NextFunction) => {
   const paramsObject: { [key: string]: SetDataInput[] } = req.body;
-  const mainParamToTest = paramsObject[key];
+  const mainParamToTest = paramsObject[key] as SetDataInput[];
   for (const param of mainParamToTest) {
     const { namespace } = param;
     // Reject unknown namespaces and pub_noncev2 before any DB write, so bulk writes cannot land

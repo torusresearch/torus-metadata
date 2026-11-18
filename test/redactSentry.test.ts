@@ -1,5 +1,5 @@
 import { ErrorEvent } from "@sentry/node";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import redact from "../src/utils/redactSentry";
 
