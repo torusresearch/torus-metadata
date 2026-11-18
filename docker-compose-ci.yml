@@ -36,6 +36,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.dev
+      args:
+        NODE_IMAGE: ${NODE_IMAGE:-node:24.22.1-alpine}
     env_file:
       - ./.env.development
     command: "/app/test/run.sh"

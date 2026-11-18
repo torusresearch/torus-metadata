@@ -71,3 +71,4 @@ pnpm-lock.yaml
 .husky
 
 dist/
+.vitest/

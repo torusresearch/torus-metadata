@@ -1,6 +1,7 @@
+import { TextEncoder } from "util";
+
 import CID from "cids";
 import multihashing from "multihashing-async";
-import { TextEncoder } from "util";
 
 import { Data } from "../utils/interfaces";
 

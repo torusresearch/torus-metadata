@@ -1,0 +1,130 @@
+name: Validate
+
+on:
+  pull_request:
+  workflow_call:
+    inputs:
+      ref:
+        description: Commit or branch to validate. Empty uses the calling commit.
+        required: false
+        type: string
+        default: ""
+    secrets:
+      WIZ_SENSOR_TOKEN:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: run tests
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["24.22", "26"]
+        os: [ubuntu-latest]
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Wiz sensor
+        uses: Web3Auth/.github/.github/actions/wiz-sensor@545f7c255313f85d38a02dc36c4ad01387d03149 # v1.0.0
+        with:
+          enabled: ${{ vars.WIZ_SENSOR_ENABLED }}
+          token: ${{ secrets.WIZ_SENSOR_TOKEN }}
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
+
+      - name: Use Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ matrix.node }}
+          cache: "npm"
+
+      - name: Install npm 12
+        run: npm install --global npm@12.2.0
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check dependency hardening
+        run: npm exec --no -- harden check --package-manager npm
+
+      - name: Check lint and format
+        run: npm run check
+
+      - name: Build
+        run: npm run build
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      # The integration tests run the server, MySQL and Redis in Docker, on the same Node.js major as this job.
+      - name: Run tests
+        env:
+          NODE_IMAGE: node:${{ matrix.node }}-alpine
+        run: npm run test:ci
+
+  docker:
+    name: build torus-metadata image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wiz sensor
+        uses: Web3Auth/.github/.github/actions/wiz-sensor@545f7c255313f85d38a02dc36c4ad01387d03149 # v1.0.0
+        with:
+          enabled: ${{ vars.WIZ_SENSOR_ENABLED }}
+          token: ${{ secrets.WIZ_SENSOR_TOKEN }}
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
+
+      - name: Build image
+        run: docker build -t torus-metadata:ci .
+
+      - name: Smoke test image
+        run: |
+          docker compose -f docker-compose-ci.yml up -d --wait redis mysql
+          docker run -d --name torus-metadata --network torus-metadata_default --env-file .env.development -p 5051:5051 torus-metadata:ci
+          for _ in $(seq 1 30); do curl -fsS http://localhost:5051/health && break; sleep 1; done
+          curl -fsS http://localhost:5051/health
+          test "$(docker exec torus-metadata id -u)" != "0"
+          docker logs torus-metadata
+          docker rm -f torus-metadata
+          docker compose -f docker-compose-ci.yml down
+
+  release-notes:
+    if: github.event_name == 'pull_request' && !startsWith(github.head_ref, 'changeset-release/') && !startsWith(github.head_ref, 'dependabot/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Use Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24.22"
+          cache: "npm"
+
+      - name: Install npm 12
+        run: npm install --global npm@12.2.0
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check release notes
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch --no-tags origin "${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+          npm exec --no -- changeset status --since="origin/${BASE_REF}"
