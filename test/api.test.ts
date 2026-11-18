@@ -32,6 +32,21 @@ describe("API-calls", function () {
     });
   });
 
+  describe("rate limit", function () {
+    const nodeApiKey = process.env.TORUS_NODE_API_KEY || "torus-node-dev-key";
+
+    it("should rate limit callers without a valid torus node key", async function () {
+      expect((await fetch(`${server}/health`)).headers.get("ratelimit-policy")).toBeTruthy();
+      expect((await fetch(`${server}/health`, { headers: { "x-web3-api-key": `${nodeApiKey}x` } })).headers.get("ratelimit-policy")).toBeTruthy();
+    });
+
+    it("should skip the rate limit for a valid torus node key", async function () {
+      const res = await fetch(`${server}/health`, { headers: { "x-web3-api-key": nodeApiKey } });
+      expect(res.status).toBe(200);
+      expect(res.headers.get("ratelimit-policy")).toBeNull();
+    });
+  });
+
   describe("/set", function () {
     let PRIVATE_KEY: bigint;
     const storageLayer = new TorusStorageLayer({ hostUrl: server });

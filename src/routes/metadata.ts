@@ -145,24 +145,20 @@ router.post(
   async (req, res) => {
     try {
       const { shares }: { shares: SetDataInput[] } = req.body;
-      const requiredData = shares.reduce(
-        (acc: Record<keyof DBTableName, DataInsertType[]>, x) => {
-          const {
-            namespace,
-            pub_key_X: pubKeyX,
-            pub_key_Y: pubKeyY,
-            set_data: { data },
-            tableName,
-          } = x;
-          const tableData = acc[tableName as keyof DBTableName];
-          if (tableData) tableData.push({ key: constructKey(pubKeyX, pubKeyY, namespace), value: data });
-          else acc[tableName as keyof DBTableName] = [{ key: constructKey(pubKeyX, pubKeyY, namespace), value: data }];
-          return acc;
-        },
-        {} as Record<keyof DBTableName, DataInsertType[]>
-      );
+      const requiredData = new Map<DBTableName, DataInsertType[]>();
+      for (const {
+        namespace,
+        pub_key_X: pubKeyX,
+        pub_key_Y: pubKeyY,
+        set_data: { data },
+        tableName,
+      } of shares) {
+        const tableData = requiredData.get(tableName as DBTableName) ?? [];
+        tableData.push({ key: constructKey(pubKeyX, pubKeyY, namespace), value: data });
+        requiredData.set(tableName as DBTableName, tableData);
+      }
 
-      await Promise.all(Object.keys(requiredData).map((x) => knexWrite(x).insert(requiredData[x as keyof DBTableName])));
+      await Promise.all([...requiredData].map(([table, rows]) => knexWrite(table).insert(rows)));
 
       const redisData = shares.reduce(
         (acc: Record<string, string>, x) => {
@@ -185,7 +181,7 @@ router.post(
         log.warn("redis bulk set failed", error);
       }
 
-      const ipfsResult = await getHashAndWriteAsync(Object.values(requiredData));
+      const ipfsResult = await getHashAndWriteAsync([...requiredData.values()]);
       res.json({ message: ipfsResult });
       return;
     } catch (error) {

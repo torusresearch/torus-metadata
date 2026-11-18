@@ -21,6 +21,7 @@ dotenv.config({ path: envPath });
 if (!process.env.TORUS_NODE_API_KEY) throw new Error("TORUS_NODE_API_KEY is not set");
 
 // bring all routes here
+import { rateLimiter } from "./middleware";
 import routes from "./routes";
 import { traceContextMiddleware } from "./utils/traceContext";
 
@@ -36,7 +37,7 @@ http.headersTimeout = 305 * 1000;
 const corsOptions = {
   //   origin: ["https://localhost:3000", /\.tor\.us$/],
   origin: true,
-  credentials: true,
+  credentials: false,
   allowedHeaders: [
     "Content-Type",
     "x-api-key",
@@ -72,6 +73,7 @@ app.use(express.urlencoded({ extended: false, limit: "20mb" })); // middleware w
 app.use(express.json({ limit: "20mb" })); // converts body to json
 
 app.use(traceContextMiddleware);
+app.use(rateLimiter);
 
 app.use("/metadata-service", routes);
 app.use("/", routes);
