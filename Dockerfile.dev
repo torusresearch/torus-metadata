@@ -1,18 +1,20 @@
-FROM node:24-alpine
+ARG NODE_IMAGE=node:24.22.1-alpine
+FROM ${NODE_IMAGE}
 
-ENV NODE_OPTIONS --max-old-space-size=4096
+RUN npm install --global npm@12.2.0 && mkdir -p /app && chown node:node /app
+
+ENV NODE_OPTIONS=--max-old-space-size=4096
+
+USER node
 
 WORKDIR /app
 
-RUN apk add --no-cache --virtual .gyp \
-        python3 \
-        make \
-        g++
+COPY --chown=node:node package.json package-lock.json .npmrc ./
 
-COPY package*.json ./
+RUN npm ci --no-audit --no-fund
 
-RUN npm install && apk del .gyp
+COPY --chown=node:node . .
 
-COPY . .
+EXPOSE 5051
 
-CMD npm run migrate && npm run serve
+CMD ["sh", "-c", "npm run migrate && npm run serve"]

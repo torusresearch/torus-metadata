@@ -13,7 +13,7 @@ log.info({
   devDatabase: process.env.MYSQL_DATABASE,
 });
 
-function afterCreate(conn: Knex.Client, done: (err: Error, connection: unknown) => void): void {
+function afterCreate(conn: Knex.Client, done: (err: Error | null, connection: unknown) => void): void {
   if (process.env.IS_AURORA_READ_REPLICA === "true") {
     conn.query("SET aurora_replica_read_consistency='SESSION';", (err: Error) => {
       if (err) {

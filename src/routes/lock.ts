@@ -58,7 +58,7 @@ router.post(
   async (req: Request, res: Response) => {
     const { key: pubKey }: { key: string } = req.body;
     try {
-      let value: string;
+      let value: string | undefined;
       try {
         value = (await redis.get(pubKey)) as string;
       } catch (error) {
@@ -100,7 +100,7 @@ router.post(
     try {
       const { key, id }: { key: string; id: string } = req.body;
 
-      let value: string;
+      let value: string | undefined;
       try {
         value = (await redis.get(key)) as string;
       } catch (error) {

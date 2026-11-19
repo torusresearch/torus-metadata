@@ -1,13 +1,14 @@
+import { TextEncoder } from "util";
+
 import CID from "cids";
 import multihashing from "multihashing-async";
-import { TextEncoder } from "util";
 
 import { Data } from "../utils/interfaces";
 
-export const getHashAndWriteAsync = async function (data: Record<string, Partial<Data>[]>): Promise<string[]> {
+export const getHashAndWriteAsync = async function (groups: Partial<Data>[][]): Promise<string[]> {
   // Get hash
   const hashes = await Promise.all(
-    Object.values(data).map((x: Partial<Data>[]) => {
+    groups.map((x: Partial<Data>[]) => {
       const bytes = new TextEncoder().encode(JSON.stringify(x));
       return multihashing(bytes, "sha2-256");
     })
