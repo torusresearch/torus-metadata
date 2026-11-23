@@ -39,7 +39,7 @@ jobs:
         run: mkdir -p kics-results
 
       - name: Run KICS scan
-        uses: checkmarx/kics-github-action@4600d2f2e1dfb33fbf6e1dfd60a01fb18b202ba1 # master 2026-10-16, digest-pinned images
+        uses: checkmarx/kics-github-action@4a16c2130b02104dc2624c133d5224080e7cc49b # master 2026-10-16, digest-pinned images
         with:
           path: .
           fail_on: critical,high
