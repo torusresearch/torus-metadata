@@ -1,4 +1,4 @@
-FROM node:24.22.3-alpine AS base
+FROM node:26.13.0-alpine AS base
 
 # The npm binary stays root-owned. Application dependencies are installed below, as node.
 RUN npm install --global npm@12.2.0
@@ -41,7 +41,7 @@ COPY --from=build /home/node/app/dist ./dist
 USER root
 RUN chown -R root:root /home/node/app
 
-FROM node:24.22.3-alpine
+FROM node:26.13.0-alpine
 
 ENV NODE_OPTIONS=--max-old-space-size=4096
 
