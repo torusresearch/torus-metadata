@@ -4,7 +4,8 @@ import log from "loglevel";
 import { createClient } from "redis";
 
 const { REDIS_PORT, REDIS_HOSTNAME } = process.env;
-const client = createClient({ socket: { host: REDIS_HOSTNAME, port: Number(REDIS_PORT) } });
+// Keep redis v5 behavior: RESP2 replies, and no command timeout so queued commands wait for a reconnect.
+const client = createClient({ RESP: 2, commandOptions: { timeout: 0 }, socket: { host: REDIS_HOSTNAME, port: Number(REDIS_PORT) } });
 
 client.on("error", (error) => {
   log.error(error);

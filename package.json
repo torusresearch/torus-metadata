@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "description": "Torus metadata server",
-  "main": "index.js",
+  "main": "dist/index.js",
   "scripts": {
     "dev": "docker compose -f docker-compose.dev.yml up --build",
     "down": "docker compose -f docker-compose.dev.yml down",
@@ -97,7 +97,7 @@
   },
   "homepage": "https://github.com/torusresearch/torus-metadata#readme",
   "engines": {
-    "node": ">=24.22.0",
+    "node": ">=24.22.3 <25 || >=26.13.1",
     "npm": ">=12"
   },
   "overrides": {
