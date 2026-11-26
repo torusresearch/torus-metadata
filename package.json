@@ -1,6 +1,7 @@
 {
   "name": "torus-metadata",
   "version": "1.0.0",
+  "private": true,
   "description": "Torus metadata server",
   "main": "index.js",
   "scripts": {
@@ -17,7 +18,8 @@
     "prepare": "husky",
     "test": "vitest run --config=test/node.config.mts",
     "test:ci": "docker compose -f docker-compose-ci.yml up --build --abort-on-container-exit --exit-code-from torus-metadata",
-    "down:ci": "docker compose -f docker-compose-ci.yml down"
+    "down:ci": "docker compose -f docker-compose-ci.yml down",
+    "version-packages": "changeset version && npm install --package-lock-only --ignore-scripts"
   },
   "keywords": [],
   "author": "Chaitanya Potti",
@@ -48,6 +50,7 @@
     "redis": "^5.11.0"
   },
   "devDependencies": {
+    "@changesets/cli": "^3.0.3",
     "@tkey/storage-layer-torus": "^17.1.0",
     "@toruslabs/config": "^4.0.0",
     "@toruslabs/eslint-config-node": "^5.0.1",
