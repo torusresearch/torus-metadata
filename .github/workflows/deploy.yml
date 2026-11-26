@@ -1,0 +1,227 @@
+name: deploy
+
+# Every push to master deploys LRC.
+# The same run writes the changelog, then waits for admin approval before production.
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: run tests
+    strategy:
+      matrix:
+        node: ["24.x"]
+        os: [ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+
+      - name: Use Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: ${{ matrix.node }}
+          cache: "npm"
+
+      - name: Run tests
+        run: npm run test:ci
+
+  deploy-lrc:
+    name: Deploy LRC
+    needs: test
+    runs-on: ubuntu-latest
+    environment: lrc
+    concurrency:
+      group: deploy-lrc
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION_SING }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2.1.7
+
+      - name: Build, tag, and push image to Amazon ECR
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: torus-metadata-lrc
+          IMAGE_TAG: latest
+        run: |
+          # Build a docker container and push it to ECR 
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:$GITHUB_SHA .
+          echo "Pushing image to ECR..."
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$GITHUB_SHA
+
+      - name: Deploy
+        timeout-minutes: 10
+        run: |
+          aws ecs update-service --cluster $ECS_CLUSTER_METADATA --service $ECS_SERVICE_METADATA --force-new-deployment
+          aws ecs wait services-stable --cluster $ECS_CLUSTER_METADATA --service $ECS_SERVICE_METADATA
+        env:
+          ECS_CLUSTER_METADATA: lrc-microservices
+          ECS_SERVICE_METADATA: torus-metadata-service
+
+  prd-changelog:
+    if: github.ref == 'refs/heads/master'
+    needs: test
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      contents: read
+      deployments: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Generate prd changelog
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./scripts/productionChangelog.sh >> "$GITHUB_STEP_SUMMARY"
+
+  deploy-production-us:
+    name: Deploy US
+    needs: prd-changelog
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: deploy-production-us
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION_US }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2.1.7
+
+      - name: Build, tag, and push image to Amazon ECR
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: torus-metadata
+          IMAGE_TAG: latest
+        run: |
+          # Build a docker container and push it to ECR 
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:$GITHUB_SHA .
+          echo "Pushing image to ECR..."
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$GITHUB_SHA
+
+      - name: Deploy
+        timeout-minutes: 10
+        run: |
+          aws ecs update-service --cluster $ECS_CLUSTER_METADATA --service $ECS_SERVICE_METADATA --force-new-deployment
+          aws ecs wait services-stable --cluster $ECS_CLUSTER_METADATA --service $ECS_SERVICE_METADATA
+        env:
+          ECS_CLUSTER_METADATA: prod-microservices
+          ECS_SERVICE_METADATA: torus-metadata-service
+
+  deploy-production-sing:
+    name: Deploy Singapore
+    needs: prd-changelog
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: deploy-production-sing
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION_SING }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2.1.7
+
+      - name: Build, tag, and push image to Amazon ECR
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: torus-metadata
+          IMAGE_TAG: latest
+        run: |
+          # Build a docker container and push it to ECR 
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:$GITHUB_SHA .
+          echo "Pushing image to ECR..."
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$GITHUB_SHA
+
+      - name: Deploy
+        timeout-minutes: 10
+        run: |
+          aws ecs update-service --cluster $ECS_CLUSTER_METADATA --service $ECS_SERVICE_METADATA --force-new-deployment
+          aws ecs wait services-stable --cluster $ECS_CLUSTER_METADATA --service $ECS_SERVICE_METADATA
+        env:
+          ECS_CLUSTER_METADATA: prod-microservices
+          ECS_SERVICE_METADATA: torus-metadata-service
+
+  github-release:
+    needs: [deploy-production-us, deploy-production-sing]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      deployments: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="prod-$(date -u +%F)-${GITHUB_RUN_ID}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release ${tag} already exists."
+            exit 0
+          fi
+          ./scripts/productionChangelog.sh > changelog.md
+          gh release create "$tag" --target "$GITHUB_SHA" --title "$tag" --latest=false --notes-file changelog.md
