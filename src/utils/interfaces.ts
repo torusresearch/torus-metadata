@@ -84,7 +84,7 @@ export interface LockDataInput {
   data: Partial<SetDataData> & Pick<SetDataData, "timestamp">;
 }
 
-export const getDBTableName = (namespace: string) => {
+export const getDBTableName = (namespace?: string) => {
   const table = DBTableMap[namespace || ""] || "test";
   return table;
 };

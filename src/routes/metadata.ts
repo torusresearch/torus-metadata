@@ -1,4 +1,3 @@
-/* eslint-disable security/detect-object-injection */
 import { generatePrivate } from "@toruslabs/eccrypto";
 import { bytesToHex, hexToBytes, secp256k1, utf8ToBytes } from "@toruslabs/metadata-helpers";
 import { celebrate, Joi, Segments } from "celebrate";
@@ -10,6 +9,7 @@ import { getHashAndWriteAsync } from "../database/ipfs";
 import { knexRead, knexWrite } from "../database/knex";
 import redis, { redlock } from "../database/redis";
 import {
+  checkTorusNodeApiKey,
   serializeStreamBody,
   validateDataTimeStamp,
   validateGetOrSetNonceSetInput,
@@ -70,7 +70,7 @@ router.post(
         tableName = "",
       }: { namespace?: string; pub_key_X: string; pub_key_Y: string; tableName?: DBTableName } = req.body;
       const key = constructKey(pubKeyX, pubKeyY, namespace);
-      let value: string;
+      let value: string | undefined;
       try {
         value = (await redis.get(key)) as string;
       } catch (error) {
@@ -121,7 +121,7 @@ router.post(
         log.warn("redis set failed", error);
       }
 
-      const ipfsResult = await getHashAndWriteAsync({ [tableName]: [{ key, value: data }] });
+      const ipfsResult = await getHashAndWriteAsync([[{ key, value: data }]]);
       res.json({ message: ipfsResult });
       return;
     } catch (error) {
@@ -145,24 +145,20 @@ router.post(
   async (req, res) => {
     try {
       const { shares }: { shares: SetDataInput[] } = req.body;
-      const requiredData = shares.reduce(
-        (acc: Record<keyof DBTableName, DataInsertType[]>, x) => {
-          const {
-            namespace,
-            pub_key_X: pubKeyX,
-            pub_key_Y: pubKeyY,
-            set_data: { data },
-            tableName,
-          } = x;
-          if (acc[tableName as keyof DBTableName])
-            acc[tableName as keyof DBTableName].push({ key: constructKey(pubKeyX, pubKeyY, namespace), value: data });
-          else acc[tableName as keyof DBTableName] = [{ key: constructKey(pubKeyX, pubKeyY, namespace), value: data }];
-          return acc;
-        },
-        {} as Record<keyof DBTableName, DataInsertType[]>
-      );
+      const requiredData = new Map<DBTableName, DataInsertType[]>();
+      for (const {
+        namespace,
+        pub_key_X: pubKeyX,
+        pub_key_Y: pubKeyY,
+        set_data: { data },
+        tableName,
+      } of shares) {
+        const tableData = requiredData.get(tableName as DBTableName) ?? [];
+        tableData.push({ key: constructKey(pubKeyX, pubKeyY, namespace), value: data });
+        requiredData.set(tableName as DBTableName, tableData);
+      }
 
-      await Promise.all(Object.keys(requiredData).map((x) => knexWrite(x).insert(requiredData[x as keyof DBTableName])));
+      await Promise.all([...requiredData].map(([table, rows]) => knexWrite(table).insert(rows)));
 
       const redisData = shares.reduce(
         (acc: Record<string, string>, x) => {
@@ -180,12 +176,12 @@ router.post(
       );
 
       try {
-        await Promise.all(Object.keys(redisData).map((x) => redis.setEx(x, REDIS_TIMEOUT, redisData[x])));
+        await Promise.all(Object.entries(redisData).map(([x, value]) => redis.setEx(x, REDIS_TIMEOUT, value)));
       } catch (error) {
         log.warn("redis bulk set failed", error);
       }
 
-      const ipfsResult = await getHashAndWriteAsync(requiredData);
+      const ipfsResult = await getHashAndWriteAsync([...requiredData.values()]);
       res.json({ message: ipfsResult });
       return;
     } catch (error) {
@@ -222,11 +218,11 @@ router.post(
   validateNamespaceLoop("shares"),
   async (req, res) => {
     try {
-      const { shares }: { shares: SetDataInput[] } = req.body;
+      const { shares }: { shares: (SetDataInput & { tableName: DBTableName })[] } = req.body;
 
       const redisData: Record<string, string> = {};
-      const totalBatchesPerTable: Partial<Record<DBTableName, DataInsertType[][]>> = {}; // Key table name, value array of batch data (max 60MB)
-      const currentBatchSizePerTable: Partial<Record<DBTableName, number>> = {}; // Key table name, value size of current batch
+      const totalBatchesPerTable = new Map<DBTableName, DataInsertType[][]>(); // Key table name, value array of batch data (max 60MB)
+      const currentBatchSizePerTable = new Map<DBTableName, number>(); // Key table name, value size of current batch
       for (const share of shares) {
         const {
           namespace,
@@ -238,45 +234,36 @@ router.post(
         const key = constructKey(pubKeyX, pubKeyY, namespace);
         redisData[key] = data;
         // Initialize
-        totalBatchesPerTable[tableName] = totalBatchesPerTable[tableName] || [[{ key, value: data }]];
-        currentBatchSizePerTable[tableName] = currentBatchSizePerTable[tableName] || 0;
-        // get current values
-        const allBatchesInCurrentTable = totalBatchesPerTable[tableName];
-        const sizeInCurrentTable = currentBatchSizePerTable[tableName];
-        const latestBatchInCurrentTable = allBatchesInCurrentTable[allBatchesInCurrentTable.length - 1];
+        let allBatchesInCurrentTable = totalBatchesPerTable.get(tableName);
+        if (!allBatchesInCurrentTable) {
+          allBatchesInCurrentTable = [[{ key, value: data }]];
+          totalBatchesPerTable.set(tableName, allBatchesInCurrentTable);
+        }
+        const sizeInCurrentTable = currentBatchSizePerTable.get(tableName) ?? 0;
+        // the last batch always exists, because the table starts with one batch
+        const latestBatchInCurrentTable = allBatchesInCurrentTable[allBatchesInCurrentTable.length - 1] as DataInsertType[];
         // do checks
         const currentDataLength = utf8ToBytes(data).length;
         if (currentDataLength + sizeInCurrentTable <= MAX_BATCH_SIZE) {
           latestBatchInCurrentTable.push({ key, value: data });
-          currentBatchSizePerTable[tableName] = currentDataLength + sizeInCurrentTable;
+          currentBatchSizePerTable.set(tableName, currentDataLength + sizeInCurrentTable);
         } else {
           // create new batch
           allBatchesInCurrentTable.push([{ key, value: data }]);
           // reset values
-          currentBatchSizePerTable[tableName] = currentDataLength;
+          currentBatchSizePerTable.set(tableName, currentDataLength);
         }
       }
 
-      await Promise.all(
-        Object.keys(totalBatchesPerTable).map((x) => insertDataInBatchForTable(x as DBTableName, totalBatchesPerTable[x as DBTableName]))
-      );
+      await Promise.all([...totalBatchesPerTable].map(([x, batches]) => insertDataInBatchForTable(x, batches)));
 
       try {
-        await Promise.all(Object.keys(redisData).map((x) => redis.setEx(x, REDIS_TIMEOUT, redisData[x])));
+        await Promise.all(Object.entries(redisData).map(([x, value]) => redis.setEx(x, REDIS_TIMEOUT, value)));
       } catch (error) {
         log.warn("redis bulk set failed", error);
       }
 
-      const requiredData = Object.keys(totalBatchesPerTable).reduce(
-        (acc: Record<DBTableName, DataInsertType[]>, x) => {
-          const batch = totalBatchesPerTable[x as DBTableName];
-          acc[x as DBTableName] = batch.flatMap((y) => y);
-          return acc;
-        },
-        {} as Record<DBTableName, DataInsertType[]>
-      );
-
-      const ipfsResult = await getHashAndWriteAsync(requiredData);
+      const ipfsResult = await getHashAndWriteAsync([...totalBatchesPerTable.values()].map((batches) => batches.flat()));
       res.json({ message: ipfsResult });
       return;
     } catch (error) {
@@ -333,24 +320,25 @@ router.post(
     [Segments.BODY]: Joi.object({
       pub_key_X: Joi.string().max(64).hex().required(),
       pub_key_Y: Joi.string().max(64).hex().required(),
+      key_type: Joi.string().allow(""),
+      // set_data fields are checked per request format in validateGetOrSetNonceSetInput
       set_data: Joi.object({
-        data: Joi.string(),
-        timestamp: Joi.string().hex(),
+        operation: Joi.string(),
+        data: Joi.string().allow(""),
+        timestamp: Joi.string().allow(""),
+        seed: Joi.string().allow(""),
       }),
       signature: Joi.string().max(88),
     }),
   }),
   validateGetOrSetNonceSetInput,
   validateGetOrSetNonceSignature,
+  checkTorusNodeApiKey,
   validateNamespace,
   async (req: Request, res: Response) => {
     try {
-      const {
-        pub_key_X: pubKeyX,
-        pub_key_Y: pubKeyY,
-        set_data: { data },
-        tableName,
-      }: SetDataInput = req.body;
+      const { pub_key_X: pubKeyX, pub_key_Y: pubKeyY, tableName }: SetDataInput & { tableName: DBTableName } = req.body;
+      const { operation, newNonce } = res.locals.nonceCommand as { operation: string; newNonce: string };
 
       // A v1 (legacy) nonce lives under the empty namespace in the "data" table, so probe with
       // the no-namespace key. The route rejects any caller-supplied namespace, so tableName is
@@ -358,7 +346,7 @@ router.post(
       const oldKey = constructKey(pubKeyX, pubKeyY);
 
       // check if it already exists
-      let oldValue: string;
+      let oldValue: string | undefined;
       try {
         oldValue = (await redis.get(oldKey)) as string;
       } catch (error) {
@@ -380,12 +368,12 @@ router.post(
       const keyForPubNonce = constructKey(pubKeyX, pubKeyY, NAMESPACES.pubNonceV2);
 
       // if not check if v2 has been created before
-      let nonce: string;
-      let pubNonce: string | { x: string; y: string };
-      let ipfs: string[];
+      let nonce: string | undefined;
+      let pubNonce: string | { x: string; y: string } | undefined;
+      let ipfs: string[] | undefined;
 
       const getNonce = async (strongConsistency = false): Promise<string | undefined> => {
-        let nonceVal: string;
+        let nonceVal: string | undefined;
         try {
           nonceVal = (await redis.get(key)) as string;
         } catch (error) {
@@ -400,7 +388,7 @@ router.post(
       };
 
       const getPubNonce = async (strongConsistency = false): Promise<string | undefined> => {
-        let pubNonceVal: string;
+        let pubNonceVal: string | undefined;
         try {
           pubNonceVal = (await redis.get(keyForPubNonce)) as string;
         } catch (error) {
@@ -423,7 +411,7 @@ router.post(
 
       nonce = await getNonce(true);
 
-      if (nonce === "<v1>" || (!nonce && data !== "getOrSetNonce")) {
+      if (nonce === "<v1>" || (!nonce && operation !== "getOrSetNonce")) {
         res.json({ typeOfUser: "v1" });
         return;
       } // This is a v1 user who didn't have a nonce before we rolled out v2, if he sets his nonce in the future, this value will be ignored
@@ -451,8 +439,8 @@ router.post(
             pubNonce = await getPubNonce(true);
             gettingPubNonceTime = process.hrtime.bigint();
           } else {
-            // create new nonce
-            nonce = bytesToHex(generatePrivate());
+            // create new nonce, or store the signed nonce of an imported key
+            nonce = newNonce ? newNonce.padStart(64, "0") : bytesToHex(generatePrivate());
 
             const unformattedPubNonce = secp256k1.getPublicKey(hexToBytes(nonce), false);
             if (unformattedPubNonce.length !== 65) {
@@ -473,7 +461,7 @@ router.post(
             ]);
             insertingTime = process.hrtime.bigint();
             [ipfs] = await Promise.all([
-              getHashAndWriteAsync({ [tableName]: [{ key, value: pubNonceStr }] }),
+              getHashAndWriteAsync([[{ key, value: pubNonceStr }]]),
               redis.setEx(key, REDIS_TIMEOUT, nonce).catch((error) => log.warn("redis set failed", error)),
               redis.setEx(keyForPubNonce, REDIS_TIMEOUT, pubNonceStr).catch((error) => log.warn("redis set failed", error)),
             ]);
@@ -504,8 +492,8 @@ router.post(
         ipfs,
         nonce: undefined,
       } as { typeOfUser: "v1" | "v2"; upgraded: boolean; pubNonce: string | { x: string; y: string }; ipfs: string[]; nonce?: string };
-      if (!returnResponse.upgraded && !res.locals.noValidSig) {
-        // if account is 1/1 and there's a valid sig, return nonce
+      if (!returnResponse.upgraded && (!res.locals.noValidSig || res.locals.isTorusNode)) {
+        // if account is 1/1 and there's a valid sig or a torus node api key, return nonce
         returnResponse.nonce = nonce;
       }
       res.json(returnResponse);

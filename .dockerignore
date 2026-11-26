@@ -58,3 +58,7 @@ documentation/
 .prettierrc.yaml
 Dockerfile.dev
 jsdoc*
+
+# Host build and test output; the image creates its own.
+coverage/
+dist/

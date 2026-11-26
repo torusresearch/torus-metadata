@@ -1,6 +1,9 @@
-/* eslint-disable security/detect-object-injection */
+import { timingSafeEqual } from "crypto";
+
+import { secp256k1 } from "@toruslabs/metadata-helpers";
 import { Joi } from "celebrate";
 import { NextFunction, Request, Response } from "express";
+import { rateLimit } from "express-rate-limit";
 import log from "loglevel";
 
 import { getError, isValidLockSignature, isValidSignature } from "../utils";
@@ -21,7 +24,7 @@ export const validateDataTimeStamp = async (req: Request, res: Response, next: N
 
 export const validateMetadataLoopInput = (key: string) => (req: Request, res: Response, next: NextFunction) => {
   const paramsObject: { [key: string]: SetDataInput[] } = req.body;
-  const mainParamToTest = paramsObject[key];
+  const mainParamToTest = paramsObject[key] as SetDataInput[];
   for (const [index, param] of mainParamToTest.entries()) {
     const { set_data: setData } = param;
     const { timestamp } = setData;
@@ -57,7 +60,7 @@ export const validateSignature = async (req: Request, res: Response, next: NextF
 
 export const validateLoopSignature = (key: string) => (req: Request, res: Response, next: NextFunction) => {
   const paramsObject: { [key: string]: SetDataInput[] } = req.body;
-  const mainParamToTest = paramsObject[key];
+  const mainParamToTest = paramsObject[key] as SetDataInput[];
   for (const [index, param] of mainParamToTest.entries()) {
     try {
       const isValid = isValidSignature(param);
@@ -116,7 +119,7 @@ export const validatePublicReadNamespace = (req: Request, res: Response, next: N
 
 export const validateNamespaceLoop = (key: string) => (req: Request, res: Response, next: NextFunction) => {
   const paramsObject: { [key: string]: SetDataInput[] } = req.body;
-  const mainParamToTest = paramsObject[key];
+  const mainParamToTest = paramsObject[key] as SetDataInput[];
   for (const param of mainParamToTest) {
     const { namespace } = param;
     // Reject unknown namespaces and pub_noncev2 before any DB write, so bulk writes cannot land
@@ -166,7 +169,67 @@ function validV2InputWithSig(body: Record<string, unknown>) {
   return false;
 }
 
+const NONCE_OPERATIONS = ["getOrSetNonce", "getNonce"];
+
+// Current format (torus.js v16+ and torus nodes): set_data.operation is the command and
+// set_data.data is an optional nonce to store, e.g. for imported keys.
+const CURRENT_SIGNED_NONCE_DATA_SCHEMA = Joi.object({
+  operation: Joi.string()
+    .valid(...NONCE_OPERATIONS)
+    .required(),
+  data: Joi.string().hex().max(64).allow(""),
+  timestamp: Joi.string().hex().required(),
+  seed: Joi.string().valid(""),
+});
+
+// Unsigned lookups can not carry a caller-chosen nonce.
+const CURRENT_UNSIGNED_NONCE_DATA_SCHEMA = Joi.object({
+  operation: Joi.string()
+    .valid(...NONCE_OPERATIONS)
+    .required(),
+  data: Joi.any().valid(""),
+  timestamp: Joi.any().valid(""),
+  seed: Joi.any().valid(""),
+});
+
+// Only torus nodes use the current format on this server; tKey and older clients use the v15 format.
+const validateCurrentNonceInput = (req: Request, res: Response, next: NextFunction) => {
+  if (!isValidTorusNodeApiKey(req.get("x-web3-api-key"))) {
+    res.status(403).json({ error: { set_data: "This request format is only accepted from torus nodes" }, success: false });
+    return;
+  }
+  const { set_data: setData, key_type: keyType } = req.body;
+  if (keyType && keyType !== "secp256k1") {
+    res.status(400).json({ error: { key_type: "Only secp256k1 keys are supported" }, success: false });
+    return;
+  }
+  const signed = validV2InputWithSig(req.body);
+  const { error } = (signed ? CURRENT_SIGNED_NONCE_DATA_SCHEMA : CURRENT_UNSIGNED_NONCE_DATA_SCHEMA).validate(setData);
+  if (error) {
+    res.status(400).json({ error, success: false });
+    return;
+  }
+  if (signed && ~~(Date.now() / 1000) - parseInt(setData.timestamp, 16) > 600) {
+    log.error("[validateGetOrSetNonceSetInput] Message has been signed more than 600s ago");
+    res.status(403).json({ error: { timestamp: "Message has been signed more than 600s ago" }, success: false });
+    return;
+  }
+  if (setData.data) {
+    const nonce = BigInt(`0x${setData.data}`);
+    if (nonce === 0n || nonce >= secp256k1.Point.CURVE().n) {
+      res.status(400).json({ error: { data: "Nonce must be a valid secp256k1 scalar" }, success: false });
+      return;
+    }
+  }
+  if (!signed) res.locals.noValidSig = true;
+  res.locals.nonceCommand = { operation: setData.operation, newNonce: setData.data || "" };
+  next();
+};
+
 export const validateGetOrSetNonceSetInput = async (req: Request, res: Response, next: NextFunction) => {
+  if (req.body.set_data?.operation !== undefined) return validateCurrentNonceInput(req, res, next);
+  // torus.js v15 format: set_data.data is the command
+  res.locals.nonceCommand = { operation: req.body.set_data?.data, newNonce: "" };
   if (!validV2InputWithSig(req.body)) {
     res.locals.noValidSig = true;
     return next();
@@ -196,6 +259,30 @@ export const validateGetOrSetNonceSetInput = async (req: Request, res: Response,
   next();
 };
 
+const isValidTorusNodeApiKey = (apiKey?: string): boolean => {
+  if (!apiKey) return false;
+  const expected = Buffer.from(process.env.TORUS_NODE_API_KEY || "", "utf8");
+  const provided = Buffer.from(apiKey, "utf8");
+  // timingSafeEqual throws on length mismatch; the early return only reveals the key length
+  return expected.length === provided.length && timingSafeEqual(expected, provided);
+};
+
+// Torus nodes look up nonces without the user's key, so they authenticate with an API key to read the private nonce.
+export const checkTorusNodeApiKey = (req: Request, res: Response, next: NextFunction) => {
+  res.locals.isTorusNode = isValidTorusNodeApiKey(req.get("x-web3-api-key"));
+  next();
+};
+
+// Torus nodes call from a few IPs on behalf of every user, so a valid node key skips the per-IP limit.
+// shortcut: in-memory store counts per process, move to a Redis store if per-IP totals must hold across instances.
+export const rateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 300,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  skip: (req) => isValidTorusNodeApiKey(req.get("x-web3-api-key")) || req.path === "/health" || req.path === "/metadata-service/health",
+});
+
 export const validateGetOrSetNonceSignature = async (req: Request, res: Response, next: NextFunction) => {
   if (!validV2InputWithSig(req.body)) {
     res.locals.noValidSig = true;
@@ -205,7 +292,12 @@ export const validateGetOrSetNonceSignature = async (req: Request, res: Response
     const { body }: { body: SetDataInput } = req;
     const isValid = isValidSignature(body);
     if (!isValid) {
-      log.error("[validateGetOrSetNonceSignature] Invalid signature", { body });
+      // set_data.data can be a secret imported nonce, so log only the fields that identify the request
+      log.error("[validateGetOrSetNonceSignature] Invalid signature", {
+        pubKeyX: body.pub_key_X,
+        pubKeyY: body.pub_key_Y,
+        setDataFields: Object.keys(body.set_data || {}),
+      });
       res.status(403).json({ error: { signature: "Invalid Signature" }, success: false });
       return;
     }

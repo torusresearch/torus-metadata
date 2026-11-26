@@ -12,6 +12,13 @@ if (sentryDsn) {
     integrations: [Sentry.anrIntegration()],
     tracesSampleRate: process.env.SENTRY_TRACES_SAMPLE_RATE ? Number(process.env.SENTRY_TRACES_SAMPLE_RATE) : 0.001,
     sampleRate: process.env.SENTRY_SAMPLE_RATE ? Number(process.env.SENTRY_SAMPLE_RATE) : 0.1,
+    // Sentry 11 collects all of these by default. Request bodies and DB query values carry signed data and nonces.
+    dataCollection: {
+      httpBodies: [],
+      databaseQueryData: false,
+      userInfo: false,
+      cookies: false,
+    },
     beforeSend(event) {
       return redact(event);
     },
