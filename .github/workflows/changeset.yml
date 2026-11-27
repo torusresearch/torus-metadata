@@ -27,7 +27,7 @@ jobs:
           token: ${{ secrets.WIZ_SENSOR_TOKEN }}
 
       - name: Checkout
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # The check compares the pull request with the base branch.
           fetch-depth: 0
@@ -37,6 +37,6 @@ jobs:
         run: ./scripts/changesetCheck.sh "origin/${BASE_REF}"
         env:
           BASE_REF: ${{ github.base_ref }}
-          # Allowlist from auth-service#410, plus the CI scripts this repository adds.
-          # Every other file needs a changeset.
-          NO_CHANGESET_PATHS: '^(\.github/|\.vscode/|docs/|test/|README\.md$|CHANGELOG\.md$|vitest\.config\.mts$)|(^|/)__tests__/|\.test\.([cm]?[jt]s|sh)$|(^|/)(releaseCheck|changesetCheck|lastProductionSha|productionChangelog|unreleasedComment)\.sh$'
+          # Allowlist: files that never change what ships. Every other file needs a changeset.
+          # docker-compose-ci.yml is test-only config.
+          NO_CHANGESET_PATHS: '^(\.github/|\.vscode/|docs/|test/|README\.md$|CHANGELOG\.md$|docker-compose-ci\.yml$)|(^|/)__tests__/|\.test\.([cm]?[jt]s|sh)$|(^|/)(changesetCheck|prdChangelog)\.sh$'
