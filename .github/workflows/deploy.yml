@@ -1,7 +1,7 @@
 name: deploy
 
-# Every push to master deploys LRC.
-# The same run writes the changelog, then waits for admin approval before production.
+# Every merge to master deploys LRC. The same run then waits for approval
+# before production, then creates a GitHub Release.
 on:
   push:
     branches: [master]
@@ -70,24 +70,34 @@ jobs:
           ECS_SERVICE_METADATA: torus-metadata-service
 
   prd-changelog:
-    if: github.ref == 'refs/heads/master'
-    needs: test
+    needs: deploy-lrc
     runs-on: ubuntu-latest
-    continue-on-error: true
     permissions:
       contents: read
       deployments: read
+    outputs:
+      prev: ${{ steps.changelog.outputs.prev }}
     steps:
+      - name: Wiz sensor
+        uses: Web3Auth/.github/.github/actions/wiz-sensor@545f7c255313f85d38a02dc36c4ad01387d03149 # v1.0.0
+        with:
+          enabled: ${{ vars.WIZ_SENSOR_ENABLED }}
+          token: ${{ secrets.WIZ_SENSOR_TOKEN }}
+
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Generate prd changelog
+      - name: Write the production changelog
+        id: changelog
+        # On the step, not the job: the job then succeeds, so a GitHub API error never skips production.
+        continue-on-error: true
+        run: ./scripts/prdChangelog.sh "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
         env:
           GH_TOKEN: ${{ github.token }}
-        run: ./scripts/productionChangelog.sh >> "$GITHUB_STEP_SUMMARY"
+          PROD_ENVIRONMENT: production
 
   deploy-production:
     name: release to ${{ matrix.name }} region
@@ -147,27 +157,30 @@ jobs:
           ECS_CLUSTER_METADATA: prod-microservices
           ECS_SERVICE_METADATA: torus-metadata-service
 
-  github-release:
-    needs: [deploy-production]
+  release:
+    needs: [prd-changelog, deploy-production]
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      deployments: read
     steps:
+      - name: Wiz sensor
+        uses: Web3Auth/.github/.github/actions/wiz-sensor@545f7c255313f85d38a02dc36c4ad01387d03149 # v1.0.0
+        with:
+          enabled: ${{ vars.WIZ_SENSOR_ENABLED }}
+          token: ${{ secrets.WIZ_SENSOR_TOKEN }}
+
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Create GitHub Release
+      # PREV_SHA comes from before the deploy. A lookup now would find this deploy.
+      - name: Create the GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
+          PREV_SHA: ${{ needs.prd-changelog.outputs.prev }}
         run: |
-          tag="prod-$(date -u +%F)-${GITHUB_RUN_ID}"
-          if gh release view "$tag" >/dev/null 2>&1; then
-            echo "Release ${tag} already exists."
-            exit 0
-          fi
-          ./scripts/productionChangelog.sh > changelog.md
-          gh release create "$tag" --target "$GITHUB_SHA" --title "$tag" --latest=false --notes-file changelog.md
+          tag="prod-$(date -u +%Y%m%d)-${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}"
+          TITLE="Production deploy ${tag}" ./scripts/prdChangelog.sh "$GITHUB_SHA" > notes.md
+          gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$tag" --notes-file notes.md
