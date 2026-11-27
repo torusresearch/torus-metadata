@@ -1,0 +1,186 @@
+name: deploy
+
+# Every merge to master deploys LRC. The same run then waits for approval
+# before production, then creates a GitHub Release.
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    uses: ./.github/workflows/ci.yml
+    secrets:
+      WIZ_SENSOR_TOKEN: ${{ secrets.WIZ_SENSOR_TOKEN }}
+
+  deploy-lrc:
+    name: Deploy LRC
+    needs: test
+    runs-on: ubuntu-latest
+    environment: lrc
+    concurrency:
+      group: deploy-lrc
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Wiz sensor
+        uses: Web3Auth/.github/.github/actions/wiz-sensor@545f7c255313f85d38a02dc36c4ad01387d03149 # v1.0.0
+        with:
+          enabled: ${{ vars.WIZ_SENSOR_ENABLED }}
+          token: ${{ secrets.WIZ_SENSOR_TOKEN }}
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION_SING }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@7290e214a610b32bc0eef81748948b6d466a8783 # v2.2.0
+
+      - name: Build, tag, and push image to Amazon ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: torus-metadata-lrc
+          IMAGE_TAG: latest
+        run: |
+          # Docker 29 adds a provenance attestation. ECR rejects that manifest.
+          docker build --provenance=false -t "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" -t "$ECR_REGISTRY/$ECR_REPOSITORY:$GITHUB_SHA" .
+          echo "Pushing image to ECR..."
+          docker push "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          docker push "$ECR_REGISTRY/$ECR_REPOSITORY:$GITHUB_SHA"
+
+      - name: Deploy
+        timeout-minutes: 10
+        run: |
+          aws ecs update-service --cluster "$ECS_CLUSTER_METADATA" --service "$ECS_SERVICE_METADATA" --force-new-deployment
+          aws ecs wait services-stable --cluster "$ECS_CLUSTER_METADATA" --service "$ECS_SERVICE_METADATA"
+        env:
+          ECS_CLUSTER_METADATA: lrc-microservices
+          ECS_SERVICE_METADATA: torus-metadata-service
+
+  prd-changelog:
+    needs: deploy-lrc
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: read
+    outputs:
+      prev: ${{ steps.changelog.outputs.prev }}
+    steps:
+      - name: Wiz sensor
+        uses: Web3Auth/.github/.github/actions/wiz-sensor@545f7c255313f85d38a02dc36c4ad01387d03149 # v1.0.0
+        with:
+          enabled: ${{ vars.WIZ_SENSOR_ENABLED }}
+          token: ${{ secrets.WIZ_SENSOR_TOKEN }}
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Write the production changelog
+        id: changelog
+        # On the step, not the job: the job then succeeds, so a GitHub API error never skips production.
+        continue-on-error: true
+        run: ./scripts/prdChangelog.sh "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PROD_ENVIRONMENT: production
+
+  deploy-production:
+    name: release to ${{ matrix.name }} region
+    needs: prd-changelog
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: deploy-production-${{ matrix.name }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        name: [sg, us]
+    steps:
+      - name: Wiz sensor
+        uses: Web3Auth/.github/.github/actions/wiz-sensor@545f7c255313f85d38a02dc36c4ad01387d03149 # v1.0.0
+        with:
+          enabled: ${{ vars.WIZ_SENSOR_ENABLED }}
+          token: ${{ secrets.WIZ_SENSOR_TOKEN }}
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ matrix.name == 'us' && secrets.AWS_REGION_US || secrets.AWS_REGION_SING }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@7290e214a610b32bc0eef81748948b6d466a8783 # v2.2.0
+
+      - name: Build, tag, and push image to Amazon ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: torus-metadata
+          IMAGE_TAG: latest
+        run: |
+          # Docker 29 adds a provenance attestation. ECR rejects that manifest.
+          docker build --provenance=false -t "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" -t "$ECR_REGISTRY/$ECR_REPOSITORY:$GITHUB_SHA" .
+          echo "Pushing image to ECR..."
+          docker push "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          docker push "$ECR_REGISTRY/$ECR_REPOSITORY:$GITHUB_SHA"
+
+      - name: Deploy
+        timeout-minutes: 10
+        run: |
+          aws ecs update-service --cluster "$ECS_CLUSTER_METADATA" --service "$ECS_SERVICE_METADATA" --force-new-deployment
+          aws ecs wait services-stable --cluster "$ECS_CLUSTER_METADATA" --service "$ECS_SERVICE_METADATA"
+        env:
+          ECS_CLUSTER_METADATA: prod-microservices
+          ECS_SERVICE_METADATA: torus-metadata-service
+
+  release:
+    needs: [prd-changelog, deploy-production]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Wiz sensor
+        uses: Web3Auth/.github/.github/actions/wiz-sensor@545f7c255313f85d38a02dc36c4ad01387d03149 # v1.0.0
+        with:
+          enabled: ${{ vars.WIZ_SENSOR_ENABLED }}
+          token: ${{ secrets.WIZ_SENSOR_TOKEN }}
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # PREV_SHA comes from before the deploy. A lookup now would find this deploy.
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREV_SHA: ${{ needs.prd-changelog.outputs.prev }}
+        run: |
+          tag="prod-$(date -u +%Y%m%d)-${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}"
+          TITLE="Production deploy ${tag}" ./scripts/prdChangelog.sh "$GITHUB_SHA" > notes.md
+          gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$tag" --notes-file notes.md

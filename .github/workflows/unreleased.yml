@@ -1,0 +1,54 @@
+name: unreleased
+
+# Comments on each pull request with the changes merged but not in production yet, and the changes in this pull request.
+on:
+  pull_request:
+    branches: [master]
+    types: [opened, synchronize, reopened]
+
+permissions: {}
+
+jobs:
+  comment:
+    # A pull request from a fork gets a read-only token.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: read
+      pull-requests: write
+    steps:
+      - name: Wiz sensor
+        uses: Web3Auth/.github/.github/actions/wiz-sensor@545f7c255313f85d38a02dc36c4ad01387d03149 # v1.0.0
+        with:
+          enabled: ${{ vars.WIZ_SENSOR_ENABLED }}
+          token: ${{ secrets.WIZ_SENSOR_TOKEN }}
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Write the comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_REF: ${{ github.base_ref }}
+          PR: ${{ github.event.pull_request.number }}
+          PROD_ENVIRONMENT: production
+        run: |
+          {
+            echo "<!-- unreleased-changes -->"
+            ./scripts/prdChangelog.sh "origin/${BASE_REF}"
+            echo
+            PREV_SHA=$(git merge-base "origin/${BASE_REF}" HEAD) TITLE="Changes in this PR" ./scripts/prdChangelog.sh HEAD
+          } > comment.md
+          # Read every match first: `| head -1` would end gh early, and pipefail fails the step.
+          ids=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments" --paginate \
+            --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("<!-- unreleased-changes -->"))) | .id')
+          id="${ids%%$'\n'*}"
+          if [[ -n "$id" ]]; then
+            gh api -X PATCH "repos/${GITHUB_REPOSITORY}/issues/comments/${id}" -F body=@comment.md > /dev/null
+          else
+            gh api -X POST "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments" -F body=@comment.md > /dev/null
+          fi

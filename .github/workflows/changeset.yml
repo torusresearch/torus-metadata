@@ -1,0 +1,42 @@
+name: changeset
+
+# A pull request into master needs a changeset unless every file it changes is on the allowlist
+# (docs, CI, tests). Release pull requests, Dependabot pull requests, and pull requests with the
+# skip-changeset label need none.
+on:
+  pull_request:
+    branches: [master]
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions: {}
+
+jobs:
+  check:
+    if: >-
+      !startsWith(github.head_ref, 'changeset-release/')
+      && github.event.pull_request.user.login != 'dependabot[bot]'
+      && !contains(github.event.pull_request.labels.*.name, 'skip-changeset')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Wiz sensor
+        uses: Web3Auth/.github/.github/actions/wiz-sensor@545f7c255313f85d38a02dc36c4ad01387d03149 # v1.0.0
+        with:
+          enabled: ${{ vars.WIZ_SENSOR_ENABLED }}
+          token: ${{ secrets.WIZ_SENSOR_TOKEN }}
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The check compares the pull request with the base branch.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check for a changeset
+        run: ./scripts/changesetCheck.sh "origin/${BASE_REF}"
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          # Allowlist: files that never change what ships. Every other file needs a changeset.
+          # docker-compose-ci.yml is test-only config.
+          NO_CHANGESET_PATHS: '^(\.github/|\.vscode/|docs/|test/|README\.md$|CHANGELOG\.md$|docker-compose-ci\.yml$)|(^|/)__tests__/|\.test\.([cm]?[jt]s|sh)$|(^|/)(changesetCheck|prdChangelog)\.sh$'

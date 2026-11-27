@@ -9,7 +9,7 @@ on:
       - "docker-compose-ci.yml"
       - ".github/workflows/container-scan.yml"
   push:
-    branches: [develop, master]
+    branches: [master]
   schedule:
     - cron: "37 4 * * 1"
   workflow_dispatch:

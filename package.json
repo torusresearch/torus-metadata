@@ -24,8 +24,7 @@
     "test": "vp test run --config=test/node.config.mts",
     "test:ci": "docker compose -f docker-compose-ci.yml up --build --abort-on-container-exit --exit-code-from torus-metadata",
     "down:ci": "docker compose -f docker-compose-ci.yml down",
-    "changeset": "changeset",
-    "version-packages": "changeset version && npm install --package-lock-only --ignore-scripts"
+    "changeset": "changeset"
   },
   "keywords": [],
   "author": "Chaitanya Potti",
