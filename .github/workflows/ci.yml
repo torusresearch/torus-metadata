@@ -39,6 +39,12 @@ jobs:
           ref: ${{ inputs.ref || github.sha }}
           persist-credentials: false
 
+      - name: Test changeset check
+        run: ./scripts/changesetCheck.test.sh
+
+      - name: Test changelog
+        run: ./scripts/prdChangelog.test.sh
+
       - name: Use Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -95,32 +101,3 @@ jobs:
           for _ in $(seq 1 30); do curl -fsS http://localhost:5051/health && break; sleep 1; done
           curl -fsS http://localhost:5051/health
           test "$(docker exec torus-metadata id -u)" != "0"
-
-  release-notes:
-    if: github.event_name == 'pull_request' && !startsWith(github.head_ref, 'changeset-release/') && !startsWith(github.head_ref, 'dependabot/')
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ inputs.ref || github.sha }}
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Use Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: "24.22.3"
-          cache: "npm"
-
-      - name: Install npm 12
-        run: npm install --global npm@12.2.0
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Check release notes
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        # fetch-depth: 0 already fetched origin/<base>. A second fetch fails without persisted credentials.
-        run: npm exec --no -- changeset status --since="origin/${BASE_REF}"
